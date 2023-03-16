@@ -118,6 +118,7 @@ def main():
     root = tk.Tk()
 
     controls = Controls(root)
+    controls.grid(column=0, row=0)
     tk.mainloop()
 
 
