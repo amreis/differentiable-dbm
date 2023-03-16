@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "adversarial-dbm-gui"
+version = "0.1.0"
+description = ""
+authors = ["Alister Machado dos Reis <a.machadodosreis@uu.nl>"]
+readme = "README.md"
+packages = [{include = "adversarial_dbm_gui"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+functorch = "^1.13.1"
+numpy = "^1.24.2"
+matplotlib = "^3.7.1"
+scikit-learn = "^1.2.2"
+pandas = "^1.5.3"
+multicoretsne = "^0.1"
+umap = "^0.1.1"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
