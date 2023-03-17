@@ -1,5 +1,8 @@
 import torch as T
 import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
+from tqdm import trange
 
 
 class NNClassifier(nn.Module):
@@ -36,6 +39,31 @@ class NNClassifier(nn.Module):
 
     def init_parameters(self):
         self.apply(init_model)
+
+    def fit(self, dataset: Dataset, epochs: int, optim_kwargs: dict = {}):
+        train_dl = DataLoader(dataset, batch_size=128, shuffle=True)
+
+        loss_fn = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(self.parameters(), **optim_kwargs)
+        loop = trange(epochs)
+        for e in loop:
+            epoch_loss = 0.0
+            epoch_n = 0
+
+            for batch in train_dl:
+                inputs, targets = batch
+
+                self.zero_grad()
+                outputs = self(inputs)
+
+                loss = loss_fn(outputs, targets)
+                loss.backward()
+                optimizer.step()
+
+                epoch_loss += loss.item() * targets.size(0)
+                epoch_n += targets.size(0)
+            loop.set_description(f"Loss: {epoch_loss/epoch_n:.4f}")
+        return self
 
 
 def init_model(m: nn.Module):
