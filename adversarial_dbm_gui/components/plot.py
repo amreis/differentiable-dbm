@@ -1,52 +1,68 @@
 import tkinter as tk
 
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from matplotlib.backend_bases import key_press_handler, MouseEvent, MouseButton
+import numpy as np
+from matplotlib.backend_bases import MouseEvent, key_press_handler
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-import numpy as np
-
-from .plotcontrols import Controls
 from ..compute.dbm_manager import DBMManager
+from ..main import DataHolder
+from .painters import dbm_painter, train_set_painter, wormhole_painter
 
 
 class DBMPlot(tk.Frame):
-    def __init__(self, master, dbm_manager: DBMManager, *args, **kwargs):
+    def __init__(
+        self, master, dbm_manager: DBMManager, data: DataHolder, *args, **kwargs
+    ):
         super().__init__(master, *args, **kwargs)
         self.dbm_manager = dbm_manager
+        self.data = data
 
-        self.fig = Figure(figsize=(8, 8), dpi=100)
-        self.ax = self.fig.add_subplot()
-        self.base_dbm = self.ax.imshow(
-            self.dbm_manager.get_dbm_data(),
-            extent=(0.0, 1.0, 0.0, 1.0),
-            origin="lower",
-            interpolation="none",
-            cmap="tab10",
-        )
+        self.fig = Figure(figsize=(8, 8), dpi=100, frameon=False)
+        self.ax = self.fig.add_subplot(frameon=False)
+        self.ax.set_autoscale_on(False)
+        self.ax.set_ylim(0.0-0.05, 1.0+0.05)
+        self.ax.set_xlim(0.0-0.05, 1.0+0.05)
         self.dist_map = None
 
+        self.options_frame = tk.Frame(self.master)
+        self.options_frame.grid(column=1, row=0)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas.draw()
 
-        self.toolbar: tk.Frame = NavigationToolbar2Tk(
-            self.canvas, self, pack_toolbar=False
+        self.dbm_painter = dbm_painter.DBMPainter(
+            self.ax, self.options_frame, self.dbm_manager
         )
-        self.toolbar.update()
+        self.dbm_painter.attach_for_redraw(self)
+        self.dbm_painter.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
+        self.dbm_painter.draw()
 
-        self.canvas.mpl_connect("key_press_event", self.on_key_press)
+        self.train_set_painter = train_set_painter.TrainSetPainter(
+            self.ax, self.options_frame, self.dbm_manager, self.data
+        )
+        self.train_set_painter.attach_for_redraw(self)
+        self.train_set_painter.grid(column=0, row=1, sticky=tk.NSEW, padx=5, pady=5)
+
+        self.wormhole_painter = wormhole_painter.WormholePainter(self.ax, self.options_frame, self.dbm_manager)
+        self.wormhole_painter.attach_for_redraw(self)
+        self.wormhole_painter.grid(column=0, row=2, sticky=tk.NSEW, padx=5, pady=5)
+
+        # TODO: Add WormholePainter
+
         self.canvas.mpl_connect("button_press_event", self.invert_on_click)
         self.canvas.mpl_connect("motion_notify_event", self.invert_if_drag)
         self.canvas.mpl_connect("button_release_event", self.stop_inverting)
 
         self.canvas.get_tk_widget().grid(column=0, row=0, sticky="WNES")
-        self.toolbar.grid(column=0, row=1, sticky="N")
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1, minsize=30)
 
         self._invert_on = False
+
+    def redraw(self, *args):
+        self.canvas.draw()
 
     def display_inverted_img(self, x, y):
         if x is None or y is None:
@@ -68,35 +84,9 @@ class DBMPlot(tk.Frame):
     def stop_inverting(self, *args):
         self._invert_on = False
 
-    def on_key_press(self, event):
-        print(f"you pressed {event.key}")
-        key_press_handler(event, self.canvas, self.toolbar)
-
-    def update_params(self, event):
-        if event["control_id"] == "dbm":
-            self.update_dbm(event)
-        elif event["control_id"] == "dist_map":
-            self.update_dist_map(event)
-        self.canvas.draw()
-
-    def update_dbm(self, event: dict):
-        enabled = event["enabled"]
-        self.base_dbm.set_visible(enabled)
-        self.base_dbm.set_alpha(event["alpha"])
-
-
-    def update_dist_map(self, event):
-        if self.dist_map is None:
-            self.dist_map = self.ax.imshow(
-                self.dbm_manager.get_distance_map(),
-                extent=(0.0, 1.0, 0.0, 1.0),
-                interpolation="none",
-                origin="lower",
-                cmap="viridis",
-            )
-        enabled = event["enabled"]
-        self.dist_map.set_visible(enabled)
-        self.dist_map.set_alpha(event["alpha"])
+    def destroy(self) -> None:
+        self.dbm_manager.destroy()
+        return super().destroy()
 
 
 def main():
@@ -108,8 +98,6 @@ def main():
     plot = DBMPlot(content, np.random.randint(10, size=(28, 28)))
 
     plot.grid(column=0, row=0, sticky="NSEW", padx=5, pady=5)
-    controls = Controls(content)
-    controls.grid(column=1, row=0, sticky="NW", padx=5, pady=5)
 
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)

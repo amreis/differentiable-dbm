@@ -78,14 +78,14 @@ class DataHolder:
                 self.X_classif_train.shape[1], len(np.unique(self.y_classif_train))
             )
             self.classifier.load_state_dict(
-                T.load(os.path.join(path, "classifier.pth"))
+                T.load(os.path.join(path, "classifier.pth"), map_location=DEVICE)
             )
             self.classifier.to(device=DEVICE)
             self.nninv_model = nninv.NNInv(
                 self.X_proj_train.shape[1], self.X_high_train.shape[1]
             )
             self.nninv_model.load_state_dict(
-                T.load(os.path.join(path, "nninv_model.pth"))
+                T.load(os.path.join(path, "nninv_model.pth"), map_location=DEVICE)
             )
             self.nninv_model.to(device=DEVICE)
 
@@ -183,23 +183,23 @@ def read_and_prepare_data(dataset: str = "mnist", cache: bool = True) -> DataHol
     return holder
 
 
-from .components import plot, plotcontrols, datapoint
+from .components import plot, datapoint
 from .compute.dbm_manager import DBMManager
 
 
 class MainWindow(tk.Frame):
-    def __init__(self, root: tk.Tk, dbm_manager: DBMManager, *args, **kwargs) -> None:
+    def __init__(
+        self, root: tk.Tk, dbm_manager: DBMManager, data: DataHolder, *args, **kwargs
+    ) -> None:
         super().__init__(root, *args, **kwargs)
         self.root = root
         self.inverted = np.zeros((28, 28), dtype=np.float32)
+        dbm_manager.root = self.root
 
-        self.plot = plot.DBMPlot(self, dbm_manager)
-        self.plot_controls = plotcontrols.Controls(self)
-        self.plot_controls.attach(self.plot)
+        self.plot = plot.DBMPlot(self, dbm_manager, data)
         self.inverted_vis = datapoint.DatapointFrame(self, self.inverted)
 
-        self.plot.grid(column=0, row=0, rowspan=3)
-        self.plot_controls.grid(column=1, row=0, sticky="NW")
+        self.plot.grid(column=0, row=0, rowspan=3, sticky="NSEW")
         self.inverted_vis.grid(column=1, row=2, sticky="NSEW")
 
         self.grid_columnconfigure(0, weight=3)
@@ -216,8 +216,6 @@ def calculate(*args):
 def main():
     import numpy as np
 
-    from .components.plot import DBMPlot
-
     holder = read_and_prepare_data("mnist")
 
     root = tk.Tk()
@@ -229,13 +227,14 @@ def main():
         indexing="xy",
     )
     grid_points = T.stack([xx.ravel(), yy.ravel()], dim=1)
+    n_classes = len(np.unique(holder.y_classif_train))
 
-    dbm_manager = DBMManager(holder.classifier, holder.nninv_model, grid_points)
-    # with T.no_grad():
-    #     dbm = holder.classifier.classify(holder.nninv_model(grid_points))
+    dbm_manager = DBMManager(
+        holder.classifier, holder.nninv_model, grid_points, n_classes
+    )
 
-    window = MainWindow(root, dbm_manager=dbm_manager)
-    window.grid(column=0, row=0)
+    window = MainWindow(root, dbm_manager=dbm_manager, data=holder)
+    window.grid(column=0, row=0, sticky=tk.NSEW)
 
     root.grid_columnconfigure(0, weight=1)
     root.grid_rowconfigure(0, weight=1)
