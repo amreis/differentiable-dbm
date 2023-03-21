@@ -50,14 +50,6 @@ class DBMPainter(painter.Painter):
         self.enabled_btn.grid(column=0, row=0, sticky=tk.EW)
         self.options_btn.grid(column=1, row=0, sticky=tk.NE)
 
-        self._redraw_observers = []
-
-    def attach_for_redraw(self, observer):
-        self._redraw_observers.append(observer)
-
-    def detach_for_redraw(self, observer):
-        self._redraw_observers.remove(observer)
-
     def update_params(self, *args):
         self.draw()
 
@@ -259,5 +251,4 @@ class DBMPainter(painter.Painter):
             blended = (blended - blended.min()) / (blended.max() - blended.min())
             self.drawing.set_data(blended)
 
-        for obs in self._redraw_observers:
-            obs.redraw()
+        return super().draw()

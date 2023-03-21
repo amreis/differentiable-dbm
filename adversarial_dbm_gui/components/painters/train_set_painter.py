@@ -65,14 +65,6 @@ class TrainSetPainter(painter.Painter):
         self.show_misclassifications_btn.grid(column=1, row=0, sticky=tk.EW)
         self.alpha_slider.grid(column=0, row=1, columnspan=2, sticky=tk.NSEW)
 
-        self._redraw_observers = []
-
-    def attach_for_redraw(self, observer):
-        self._redraw_observers.append(observer)
-
-    def detach_for_redraw(self, observer):
-        self._redraw_observers.remove(observer)
-
     def update_params(self, *args):
         self.draw()
 
@@ -100,5 +92,4 @@ class TrainSetPainter(painter.Painter):
         self.drawing.set_visible(self.enabled.get())
         self.drawing.set_alpha(self.options.alpha)
 
-        for obs in self._redraw_observers:
-            obs.redraw()
+        return super().draw()
