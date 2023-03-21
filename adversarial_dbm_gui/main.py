@@ -51,6 +51,8 @@ class DataHolder:
     def save_to_cache(self, path: str):
         if not self.check_all_data_present():
             logging.warn("some DataHolder attributes are still missing")
+        if not os.path.exists(path):
+            os.makedirs(path)
         ndarrays = self._ndarray_fnames_to_attrs()
 
         for fname, attr in ndarrays.items():
