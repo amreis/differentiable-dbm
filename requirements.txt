@@ -125,9 +125,9 @@ contourpy==1.0.7 ; python_version >= "3.9" and python_version < "4.0" \
 cycler==0.11.0 ; python_version >= "3.9" and python_version < "4.0" \
     --hash=sha256:3a27e95f763a428a739d2add979fa7494c912a32c17c4c38c4d5f082cad165a3 \
     --hash=sha256:9c87405839a19696e837b3b818fed3f5f69f16f1eec1a1ad77e043dcea9c772f
-fonttools==4.39.0 ; python_version >= "3.9" and python_version < "4.0" \
-    --hash=sha256:909c104558835eac27faeb56be5a4c32694192dca123d073bf746ce9254054af \
-    --hash=sha256:f5e764e1fd6ad54dfc201ff32af0ba111bcfbe0d05b24540af74c63db4ed6390
+fonttools==4.39.2 ; python_version >= "3.9" and python_version < "4.0" \
+    --hash=sha256:85245aa2fd4cf502a643c9a9a2b5a393703e150a6eaacc3e0e84bb448053f061 \
+    --hash=sha256:e2d9f10337c9e3b17f9bce17a60a16a885a7d23b59b7f45ce07ea643e5580439
 functorch==1.13.1 ; python_version >= "3.9" and python_version < "4.0" \
     --hash=sha256:a131ad83c514ad71efa1b18beeb88fd379d1c61078b2a1e29723bb85aa793d35
 importlib-resources==5.12.0 ; python_version >= "3.9" and python_version < "3.10" \
