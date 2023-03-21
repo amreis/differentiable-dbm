@@ -2,33 +2,53 @@ import tkinter as tk
 
 import numpy as np
 from matplotlib.backend_bases import MouseEvent, key_press_handler
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
+
 from ..compute.dbm_manager import DBMManager
+from ..compute.neighbors import Neighbors
 from ..main import DataHolder
-from .painters import dbm_painter, train_set_painter, wormhole_painter
+from .painters import (
+    dbm_painter,
+    train_set_painter,
+    wormhole_painter,
+    neighbors_painter,
+)
 
 
 class DBMPlot(tk.Frame):
     def __init__(
-        self, master, dbm_manager: DBMManager, data: DataHolder, *args, **kwargs
+        self,
+        master,
+        dbm_manager: DBMManager,
+        data: DataHolder,
+        neighbors: Neighbors,
+        *args,
+        **kwargs
     ):
         super().__init__(master, *args, **kwargs)
         self.dbm_manager = dbm_manager
         self.data = data
+        self.neighbors_db = neighbors
 
         self.fig = Figure(figsize=(8, 8), dpi=100, frameon=False, tight_layout=True)
         self.ax = self.fig.add_subplot(frameon=False)
         self.ax.set_autoscale_on(False)
-        self.ax.set_ylim(0.0-0.05, 1.0+0.05)
-        self.ax.set_xlim(0.0-0.05, 1.0+0.05)
+        self.ax.set_ylim(0.0 - 0.05, 1.0 + 0.05)
+        self.ax.set_xlim(0.0 - 0.05, 1.0 + 0.05)
         self.dist_map = None
 
         self.options_frame = tk.Frame(self.master)
         self.options_frame.grid(column=1, row=0)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas.draw()
+        self.toolbar = NavigationToolbar2Tk(self.canvas, self, pack_toolbar=False)
+        # Disable text that shows value under cursor because in some
+        # cases it makes the window become absurdly large and then
+        # collapse again.
+        self.toolbar.set_message = lambda *args, **kwargs: None
+        self.toolbar.update()
 
         self.dbm_painter = dbm_painter.DBMPainter(
             self.ax, self.options_frame, self.dbm_manager
@@ -43,15 +63,24 @@ class DBMPlot(tk.Frame):
         self.train_set_painter.attach_for_redraw(self)
         self.train_set_painter.grid(column=0, row=1, sticky=tk.NSEW, padx=5, pady=5)
 
-        self.wormhole_painter = wormhole_painter.WormholePainter(self.ax, self.options_frame, self.dbm_manager)
+        self.wormhole_painter = wormhole_painter.WormholePainter(
+            self.ax, self.options_frame, self.dbm_manager
+        )
         self.wormhole_painter.attach_for_redraw(self)
         self.wormhole_painter.grid(column=0, row=2, sticky=tk.NSEW, padx=5, pady=5)
+
+        self.neighbors_painter = neighbors_painter.NeighborsPainter(
+            self.ax, self.options_frame, self.neighbors_db
+        )
+        self.neighbors_painter.attach_for_redraw(self)
+        self.neighbors_painter.grid(column=0, row=3, sticky=tk.NSEW, padx=5, pady=5)
 
         self.canvas.mpl_connect("button_press_event", self.invert_on_click)
         self.canvas.mpl_connect("motion_notify_event", self.invert_if_drag)
         self.canvas.mpl_connect("button_release_event", self.stop_inverting)
 
         self.canvas.get_tk_widget().grid(column=0, row=0, sticky="WNES")
+        self.toolbar.grid(column=0, row=1, sticky=tk.EW)
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=5)

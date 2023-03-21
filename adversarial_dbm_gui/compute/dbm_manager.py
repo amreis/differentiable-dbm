@@ -3,7 +3,6 @@ from concurrent import futures
 
 import numpy as np
 import torch as T
-from torch.utils.data import DataLoader, TensorDataset
 
 from ..adversarial import deepfool
 from ..projection import dbms
@@ -18,7 +17,6 @@ class DBMManager:
         self.grid = grid_points
         self.n_classes = n_classes
         self.dbm_resolution = int(np.sqrt(self.grid.shape[0]))  # might change later
-        self.root: tk.Frame = None
 
         self._pool = futures.ThreadPoolExecutor(max_workers=2)
         self._dbm_data = None

@@ -15,6 +15,7 @@ from scipy.spatial import distance
 
 from .classifiers import nnclassifier
 from .projection import nninv, qmetrics
+from .compute import neighbors
 
 DEVICE = "cuda" if T.cuda.is_available() else "cpu"
 
@@ -32,6 +33,8 @@ class DataHolder:
         self.X_proj_test: ArrayLike = None
         self.X_high_train: ArrayLike = None
         self.X_high_test: ArrayLike = None
+        self.y_high_train: ArrayLike = None
+        self.y_high_test: ArrayLike = None
         self.classifier: nnclassifier.NNClassifier = None
         self.nninv_model: nninv.NNInv = None
 
@@ -46,6 +49,8 @@ class DataHolder:
             "X_proj_test.npy": "X_proj_test",
             "X_high_train.npy": "X_high_train",
             "X_high_test.npy": "X_high_test",
+            "y_high_train.npy": "y_high_train",
+            "y_high_test.npy": "y_high_test",
         }
 
     def save_to_cache(self, path: str):
@@ -161,9 +166,17 @@ def read_and_prepare_data(dataset: str = "mnist", cache: bool = True) -> DataHol
 
     X_tsne_filtered = X_tsne[c_keep_ixs]
 
-    X_proj_train, X_proj_test, X_high_train, X_high_test = train_test_split(
+    (
+        X_proj_train,
+        X_proj_test,
+        X_high_train,
+        X_high_test,
+        y_high_train,
+        y_high_test,
+    ) = train_test_split(
         X_tsne_filtered,
         X_classif_train[c_keep_ixs],
+        y_classif_train[c_keep_ixs],
         train_size=1000,
         random_state=420,
         stratify=y_classif_train[c_keep_ixs],
@@ -172,6 +185,8 @@ def read_and_prepare_data(dataset: str = "mnist", cache: bool = True) -> DataHol
     holder.X_proj_test = X_proj_test
     holder.X_high_train = X_high_train
     holder.X_high_test = X_high_test
+    holder.y_high_train = y_high_train
+    holder.y_high_test = y_high_test
 
     classifier = train_classifier(X_classif_train, y_classif_train, n_classes)
     nninv_model = train_nninv(X_proj_train, X_high_train)
@@ -187,18 +202,24 @@ def read_and_prepare_data(dataset: str = "mnist", cache: bool = True) -> DataHol
 
 from .components import plot, datapoint
 from .compute.dbm_manager import DBMManager
+from .compute.neighbors import Neighbors
 
 
 class MainWindow(tk.Frame):
     def __init__(
-        self, root: tk.Tk, dbm_manager: DBMManager, data: DataHolder, *args, **kwargs
+        self,
+        root: tk.Tk,
+        dbm_manager: DBMManager,
+        data: DataHolder,
+        neighbors: Neighbors,
+        *args,
+        **kwargs,
     ) -> None:
         super().__init__(root, *args, **kwargs)
         self.root = root
         self.inverted = np.zeros((28, 28), dtype=np.float32)
-        dbm_manager.root = self.root
 
-        self.plot = plot.DBMPlot(self, dbm_manager, data)
+        self.plot = plot.DBMPlot(self, dbm_manager, data, neighbors)
         self.inverted_vis = datapoint.DatapointFrame(self, self.inverted)
 
         self.plot.grid(column=0, row=0, rowspan=3, sticky="NSEW")
@@ -234,8 +255,17 @@ def main():
     dbm_manager = DBMManager(
         holder.classifier, holder.nninv_model, grid_points, n_classes
     )
+    neighbors_db = neighbors.Neighbors(
+        holder.nninv_model,
+        holder.classifier,
+        holder.X_high_train,
+        holder.y_high_train,
+        grid_points,
+    )
 
-    window = MainWindow(root, dbm_manager=dbm_manager, data=holder)
+    window = MainWindow(
+        root, dbm_manager=dbm_manager, data=holder, neighbors=neighbors_db
+    )
     window.grid(column=0, row=0, sticky=tk.NSEW)
 
     root.grid_columnconfigure(0, weight=1)
