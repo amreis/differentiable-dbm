@@ -6,6 +6,9 @@ authors = ["Alister Machado dos Reis <a.machadodosreis@uu.nl>"]
 readme = "README.md"
 packages = [{include = "adversarial_dbm_gui"}]
 
+[tool.poetry.scripts]
+main = "adversarial_dbm_gui.main:main"
+
 [tool.poetry.dependencies]
 python = "^3.9"
 functorch = "^1.13.1"
