@@ -51,7 +51,7 @@ class TrainSetPainter(painter.Painter):
             command=self.set_show_misclassifications,
         )
 
-        self.alpha_val = tk.DoubleVar()
+        self.alpha_val = tk.DoubleVar(value=self.options.alpha)
         self.alpha_slider = ttk.Scale(
             self.frame,
             command=self.set_alpha,

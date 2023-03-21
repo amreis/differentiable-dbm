@@ -16,6 +16,7 @@ class Options:
     show_borders: bool = False
     alpha: float = 1.0
     power: float = 1.0
+    blend_mode: str = "hsv"
 
 
 class DBMPainter(painter.Painter):
@@ -113,17 +114,27 @@ class DBMPainter(painter.Painter):
             options_window, text=f"Power: {self.power.get():.4f}"
         )
 
+        self.blend_mode = tk.StringVar(value=self.options.blend_mode)
+        self.blend_mode_listbox = ttk.Combobox(
+            options_window, textvariable=self.blend_mode
+        )
+        self.blend_mode_listbox["values"] = ["hsv", "soft_light", "overlay"]
+        self.blend_mode_listbox.state(["readonly"])
+        self.blend_mode_listbox.bind("<<ComboboxSelected>>", self.set_blend_mode)
+
         distance_btn.grid(column=0, row=0, columnspan=2, sticky=tk.NW)
         borders_enabled_btn.grid(column=0, row=1, columnspan=2, sticky=tk.NW)
         self.alpha_slider_label.grid(column=0, row=2, sticky=tk.NW)
-        alpha_slider.grid(column=1, row=2, sticky=tk.NSEW)
+        alpha_slider.grid(column=1, row=2, sticky=tk.EW)
         self.power_transf_slider_label.grid(column=0, row=3, sticky=tk.NW)
-        power_transf_slider.grid(column=1, row=3, sticky=tk.NSEW)
+        power_transf_slider.grid(column=1, row=3, sticky=tk.EW)
+        self.blend_mode_listbox.grid(column=0, row=4, columnspan=2, sticky=tk.EW)
 
         options_window.grid_rowconfigure(0, weight=1)
         options_window.grid_rowconfigure(1, weight=1)
         options_window.grid_rowconfigure(2, weight=1)
         options_window.grid_rowconfigure(3, weight=1)
+        options_window.grid_rowconfigure(4, weight=1)
 
         options_window.grid_columnconfigure(0, weight=1)
         options_window.grid_columnconfigure(1, weight=2)
@@ -150,6 +161,11 @@ class DBMPainter(painter.Painter):
         self.power_transf_slider_label["text"] = f"Power: {self.power.get():.4f}"
         self.update_params()
 
+    def set_blend_mode(self, *args):
+        self.blend_mode_listbox.selection_clear()
+        self.options.blend_mode = self.blend_mode.get()
+        self.update_params()
+
     def draw(self):
         if self.drawing is None:
             self.drawing = self.ax.imshow(
@@ -173,7 +189,9 @@ class DBMPainter(painter.Painter):
                     origin="lower",
                 )
         if self._borders_drawing is not None:
-            self._borders_drawing.set_visible(self.options.enabled and self.options.show_borders)
+            self._borders_drawing.set_visible(
+                self.options.enabled and self.options.show_borders
+            )
 
         if self.options.encode_distance:
             self.show_distance()
@@ -182,21 +200,36 @@ class DBMPainter(painter.Painter):
             obs.redraw()
 
     def show_distance(self):
-        from matplotlib.colors import hsv_to_rgb, rgb_to_hsv
+        from matplotlib.colors import LightSource
 
+        ls = LightSource()
         rgba, *ignore = self.drawing.make_image(None, unsampled=True)
         rgb = rgba[..., :3] / 255.0
-        hsv = rgb_to_hsv(rgb)
+
         distances = self.dbm_manager.get_distance_map()
         if distances is None:
             self.frame.after(200, self.show_distance)
             return
+
         smallest, largest = distances.min(), distances.max()
         distances = (distances - smallest) / (largest - smallest)
         distances **= self.options.power
 
-        hsv[:, :, 1] *= distances
-
-        self.drawing.set_data(hsv_to_rgb(hsv))
+        blend = self.options.blend_mode
+        if blend == "hsv":
+            self.drawing.set_data(
+                ls.blend_hsv(
+                    rgb,
+                    distances[..., None],
+                    hsv_min_val=0.3,
+                    hsv_max_val=1.0,
+                    # hsv_min_sat=0.1,
+                    # hsv_max_sat=1.0,
+                )
+            )
+        elif blend == "soft_light":
+            self.drawing.set_data(ls.blend_soft_light(rgb, distances[..., None]))
+        elif blend == "overlay":
+            self.drawing.set_data(ls.blend_overlay(rgb, distances[..., None]))
         for obs in self._redraw_observers:
             obs.redraw()
