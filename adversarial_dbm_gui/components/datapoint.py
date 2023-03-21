@@ -11,8 +11,8 @@ class DatapointFrame(tk.Frame):
 
         self.image_data = image_data
 
-        self.fig = Figure(dpi=100)
-        self.ax = self.fig.add_subplot()
+        self.fig = Figure(dpi=100, tight_layout=True)
+        self.ax = self.fig.add_subplot(xmargin=0.0, ymargin=0.0, aspect=1.0)
         self.vis = self.ax.imshow(
             self.image_data,
             extent=(0.0, 1.0, 0.0, 1.0),
@@ -20,11 +20,14 @@ class DatapointFrame(tk.Frame):
             vmin=0.0,
             vmax=1.0,
         )
+        self.ax.axis('off')
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas.draw()
 
         self.canvas.get_tk_widget().grid(column=0, row=0, padx=5, pady=5, sticky="NSEW")
+        self.canvas.get_tk_widget()['width'] = 100
+        self.canvas.get_tk_widget()['height'] = 100
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)

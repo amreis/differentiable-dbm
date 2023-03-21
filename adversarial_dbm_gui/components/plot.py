@@ -18,7 +18,7 @@ class DBMPlot(tk.Frame):
         self.dbm_manager = dbm_manager
         self.data = data
 
-        self.fig = Figure(figsize=(8, 8), dpi=100, frameon=False)
+        self.fig = Figure(figsize=(8, 8), dpi=100, frameon=False, tight_layout=True)
         self.ax = self.fig.add_subplot(frameon=False)
         self.ax.set_autoscale_on(False)
         self.ax.set_ylim(0.0-0.05, 1.0+0.05)
@@ -47,8 +47,6 @@ class DBMPlot(tk.Frame):
         self.wormhole_painter.attach_for_redraw(self)
         self.wormhole_painter.grid(column=0, row=2, sticky=tk.NSEW, padx=5, pady=5)
 
-        # TODO: Add WormholePainter
-
         self.canvas.mpl_connect("button_press_event", self.invert_on_click)
         self.canvas.mpl_connect("motion_notify_event", self.invert_if_drag)
         self.canvas.mpl_connect("button_release_event", self.stop_inverting)
@@ -56,7 +54,7 @@ class DBMPlot(tk.Frame):
         self.canvas.get_tk_widget().grid(column=0, row=0, sticky="WNES")
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=5)
         self.grid_rowconfigure(1, weight=1, minsize=30)
 
         self._invert_on = False
