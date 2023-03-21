@@ -4,6 +4,7 @@ from functools import partial
 from tkinter import ttk
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from ...compute.dbm_manager import DBMManager
 from . import painter
@@ -13,10 +14,11 @@ from . import painter
 class Options:
     enabled: bool = True
     encode_distance: bool = False
+    invert_distance: bool = False
     show_borders: bool = False
     alpha: float = 1.0
     power: float = 1.0
-    blend_mode: str = "hsv"
+    blend_mode: str = "multiply"
 
 
 class DBMPainter(painter.Painter):
@@ -73,10 +75,18 @@ class DBMPainter(painter.Painter):
         self.distance_enabled = tk.BooleanVar(value=self.options.encode_distance)
         distance_btn = ttk.Checkbutton(
             options_window,
-            text="Encode distance in Saturation",
+            text="Encode distance in",
             variable=self.distance_enabled,
             onvalue=True,
             command=self.set_encode_distance,
+        )
+        self.invert_distance = tk.BooleanVar(value=self.options.invert_distance)
+        invert_distance_btn = ttk.Checkbutton(
+            options_window,
+            text="Invert distance",
+            variable=self.invert_distance,
+            onvalue=True,
+            command=self.set_invert_distance,
         )
 
         self.borders_enabled = tk.BooleanVar(value=self.options.show_borders)
@@ -101,40 +111,42 @@ class DBMPainter(painter.Painter):
             options_window, text=f"Alpha: {self.alpha_val.get():.4f}"
         )
 
-        self.power = tk.DoubleVar(value=self.options.power)
+        self.power = tk.DoubleVar(value=np.log(self.options.power))
         power_transf_slider = ttk.Scale(
             options_window,
             command=self.set_power,
             variable=self.power,
-            from_=0.0,
-            to=2.0,
+            from_=-2.0,
+            to=3.0,
             orient=tk.HORIZONTAL,
         )
         self.power_transf_slider_label = ttk.Label(
-            options_window, text=f"Power: {self.power.get():.4f}"
+            options_window, text=f"Power: {np.exp(self.power.get()):.4f}"
         )
 
         self.blend_mode = tk.StringVar(value=self.options.blend_mode)
         self.blend_mode_listbox = ttk.Combobox(
             options_window, textvariable=self.blend_mode
         )
-        self.blend_mode_listbox["values"] = ["hsv", "soft_light", "overlay"]
+        self.blend_mode_listbox["values"] = ["multiply", "hsv", "soft_light", "overlay"]
         self.blend_mode_listbox.state(["readonly"])
         self.blend_mode_listbox.bind("<<ComboboxSelected>>", self.set_blend_mode)
 
-        distance_btn.grid(column=0, row=0, columnspan=2, sticky=tk.NW)
-        borders_enabled_btn.grid(column=0, row=1, columnspan=2, sticky=tk.NW)
-        self.alpha_slider_label.grid(column=0, row=2, sticky=tk.NW)
-        alpha_slider.grid(column=1, row=2, sticky=tk.EW)
-        self.power_transf_slider_label.grid(column=0, row=3, sticky=tk.NW)
-        power_transf_slider.grid(column=1, row=3, sticky=tk.EW)
-        self.blend_mode_listbox.grid(column=0, row=4, columnspan=2, sticky=tk.EW)
+        distance_btn.grid(column=0, row=0, sticky=tk.NW)
+        self.blend_mode_listbox.grid(column=1, row=0, sticky=tk.EW)
+        invert_distance_btn.grid(column=0, row=1, columnspan=2, sticky=tk.NW)
+        borders_enabled_btn.grid(column=0, row=2, columnspan=2, sticky=tk.NW)
+        self.alpha_slider_label.grid(column=0, row=3, sticky=tk.NW)
+        alpha_slider.grid(column=1, row=3, sticky=tk.EW)
+        self.power_transf_slider_label.grid(column=0, row=4, sticky=tk.NW)
+        power_transf_slider.grid(column=1, row=4, sticky=tk.EW)
 
         options_window.grid_rowconfigure(0, weight=1)
         options_window.grid_rowconfigure(1, weight=1)
         options_window.grid_rowconfigure(2, weight=1)
         options_window.grid_rowconfigure(3, weight=1)
         options_window.grid_rowconfigure(4, weight=1)
+        options_window.grid_rowconfigure(5, weight=1)
 
         options_window.grid_columnconfigure(0, weight=1)
         options_window.grid_columnconfigure(1, weight=2)
@@ -147,6 +159,10 @@ class DBMPainter(painter.Painter):
         self.options.encode_distance = self.distance_enabled.get()
         self.update_params()
 
+    def set_invert_distance(self, *args):
+        self.options.invert_distance = self.invert_distance.get()
+        self.update_params()
+
     def set_show_borders(self, *args):
         self.options.show_borders = self.borders_enabled.get()
         self.update_params()
@@ -157,8 +173,8 @@ class DBMPainter(painter.Painter):
         self.update_params()
 
     def set_power(self, *args):
-        self.options.power = self.power.get()
-        self.power_transf_slider_label["text"] = f"Power: {self.power.get():.4f}"
+        self.options.power = np.exp(self.power.get())
+        self.power_transf_slider_label["text"] = f"Power: {self.options.power:.4f}"
         self.update_params()
 
     def set_blend_mode(self, *args):
@@ -200,7 +216,7 @@ class DBMPainter(painter.Painter):
             obs.redraw()
 
     def show_distance(self):
-        from matplotlib.colors import LightSource
+        from matplotlib.colors import rgb_to_hsv, hsv_to_rgb, LightSource
 
         ls = LightSource()
         rgba, *ignore = self.drawing.make_image(None, unsampled=True)
@@ -211,25 +227,37 @@ class DBMPainter(painter.Painter):
             self.frame.after(200, self.show_distance)
             return
 
+        if self.options.invert_distance:
+            distances = -distances
         smallest, largest = distances.min(), distances.max()
         distances = (distances - smallest) / (largest - smallest)
         distances **= self.options.power
 
         blend = self.options.blend_mode
-        if blend == "hsv":
+        if blend == "multiply":
+            hsv = rgb_to_hsv(rgb)
+            hsv[..., 1] *= distances
+
+            self.drawing.set_data(hsv_to_rgb(hsv))
+        elif blend == "hsv":
             self.drawing.set_data(
                 ls.blend_hsv(
                     rgb,
                     distances[..., None],
                     hsv_min_val=0.3,
                     hsv_max_val=1.0,
-                    # hsv_min_sat=0.1,
-                    # hsv_max_sat=1.0,
+                    hsv_min_sat=0.5,
+                    hsv_max_sat=1.0,
                 )
             )
         elif blend == "soft_light":
-            self.drawing.set_data(ls.blend_soft_light(rgb, distances[..., None]))
+            blended = ls.blend_soft_light(rgb, distances[..., None])
+            blended = (blended - blended.min()) / (blended.max() - blended.min())
+            self.drawing.set_data(blended)
         elif blend == "overlay":
-            self.drawing.set_data(ls.blend_overlay(rgb, distances[..., None]))
+            blended = ls.blend_overlay(rgb, distances[..., None])
+            blended = (blended - blended.min()) / (blended.max() - blended.min())
+            self.drawing.set_data(blended)
+
         for obs in self._redraw_observers:
             obs.redraw()
