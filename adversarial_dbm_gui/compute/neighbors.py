@@ -21,6 +21,7 @@ class Neighbors:
         self.y_train = y_train.copy()
         self.grid = grid_points.clone()
         self.grid_width = int(np.sqrt(self.grid.shape[0]))
+        self.n_grid_points = self.grid.size(0)
         self.global_neighbor_finder = NearestNeighbors(
             n_neighbors=5
         )  # TODO we only want 1 for now, though.
@@ -45,7 +46,7 @@ class Neighbors:
     @cache
     def get_distance_to_nearest_same_class_neighbor(self):
         # this retains the data type, which might be handy.
-        distances = np.zeros_like(self.grid.cpu().numpy(), shape=(self.grid.shape[0],))
+        distances = np.zeros((self.n_grid_points,), dtype=np.float32)
         with T.no_grad():
             inverted_grid = self.inverter(self.grid)
             inverted_grid_classes = self.classifier.classify(inverted_grid)
@@ -64,8 +65,26 @@ class Neighbors:
 
         return distances.reshape((self.grid_width, self.grid_width)).copy()
 
-    def diff_between(self):  # TODO awful name. Change.
-        return (
-            self.get_distance_to_nearest_same_class_neighbor()
-            - self.get_distance_to_nearest_neighbor()
-        )
+    @cache
+    def get_distance_to_nearest_diff_class_neighbor(self):
+        distances = np.full((self.n_grid_points,), np.inf, dtype=np.float32)
+        with T.no_grad():
+            inverted_grid = self.inverter(self.grid)
+            inverted_grid_classes = self.classifier.classify(inverted_grid)
+
+            inverted_grid = inverted_grid.cpu().numpy()
+            inverted_grid_classes = inverted_grid_classes.cpu().numpy()
+
+        for cl in range(self.n_classes):
+            mask = inverted_grid_classes == cl
+            elems = inverted_grid[inverted_grid_classes == cl]
+            for other_cl in range(self.n_classes):
+                if cl == other_cl:
+                    continue
+
+                dist, _ = self.per_class_neighbor_finder[other_cl].kneighbors(
+                    elems, n_neighbors=1, return_distance=True
+                )
+                dist = dist.squeeze()
+                distances[mask] = np.minimum(distances[mask], dist)
+        return distances.reshape((self.grid_width, self.grid_width)).copy()
