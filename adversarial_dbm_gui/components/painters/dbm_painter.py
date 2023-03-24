@@ -222,12 +222,12 @@ class DBMPainter(painter.Painter):
             self._borders_drawing.set_visible(
                 self.options.enabled and self.options.show_borders
             )
+            self._borders_drawing.set_zorder(self.options.z_order)
 
         if self.options.encode_distance:
             self.show_distance()
 
-        for obs in self._redraw_observers:
-            obs.redraw()
+        return super().draw()
 
     def show_distance(self):
         from matplotlib.colors import LightSource, hsv_to_rgb, rgb_to_hsv

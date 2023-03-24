@@ -5,7 +5,7 @@ from tkinter import ttk
 from matplotlib import pyplot as plt
 
 from ...compute.neighbors import Neighbors
-from .painter import Painter
+from . import painter
 
 
 @dataclass
@@ -16,7 +16,7 @@ class Options:
     z_order: int = 0
 
 
-class NeighborsPainter(Painter):
+class NeighborsPainter(painter.Painter):
     def __init__(self, ax: plt.Axes, master: tk.Frame, neighbors: Neighbors) -> None:
         super().__init__(ax, master)
 
@@ -68,14 +68,6 @@ class NeighborsPainter(Painter):
         self.mode_listbox.grid(column=1, row=0, sticky=tk.EW)
         self.alpha_slider.grid(column=0, row=1, columnspan=2, sticky=tk.EW)
         self.z_order_spinbox.grid(column=2, row=0, rowspan=2, sticky=tk.E, padx=5)
-
-        self._redraw_observers = []
-
-    def attach_for_redraw(self, observer):
-        self._redraw_observers.append(observer)
-
-    def detach_for_redraw(self, observer):
-        self._redraw_observers.remove(observer)
 
     def update_params(self, *args):
         self.draw()
