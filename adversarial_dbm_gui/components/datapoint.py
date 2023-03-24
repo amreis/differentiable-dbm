@@ -1,7 +1,6 @@
 import tkinter as tk
-from tkinter import ttk
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from matplotlib.backend_bases import key_press_handler
+
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
 
@@ -20,14 +19,14 @@ class DatapointFrame(tk.Frame):
             vmin=0.0,
             vmax=1.0,
         )
-        self.ax.axis('off')
+        self.ax.axis("off")
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas.draw()
 
         self.canvas.get_tk_widget().grid(column=0, row=0, padx=5, pady=5, sticky="NSEW")
-        self.canvas.get_tk_widget()['width'] = 100
-        self.canvas.get_tk_widget()['height'] = 100
+        self.canvas.get_tk_widget()["width"] = 100
+        self.canvas.get_tk_widget()["height"] = 100
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)

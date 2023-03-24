@@ -1,6 +1,5 @@
-import torch as T
 import numpy as np
-
+import torch as T
 from scipy.spatial.distance import pdist, squareform
 
 
@@ -72,9 +71,10 @@ def per_point_jaccard(D_high, D_low, k=7):
 
 
 def main():
-    from ..data import load_mnist
-    from sklearn.preprocessing import minmax_scale, LabelEncoder
     from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import LabelEncoder, minmax_scale
+
+    from ..data import load_mnist
 
     X, y = load_mnist()
     X = minmax_scale(X).astype(np.float32)

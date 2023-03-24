@@ -208,7 +208,7 @@ class DBMPainter(painter.Painter):
             obs.redraw()
 
     def show_distance(self):
-        from matplotlib.colors import rgb_to_hsv, hsv_to_rgb, LightSource
+        from matplotlib.colors import LightSource, hsv_to_rgb, rgb_to_hsv
 
         ls = LightSource()
         rgba, *ignore = self.drawing.make_image(None, unsampled=True)

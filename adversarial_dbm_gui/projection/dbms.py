@@ -1,9 +1,9 @@
 from typing import Optional
-import numpy as np
-import matplotlib.pyplot as plt
-import torch.nn as nn
-import torch as T
 
+import matplotlib.pyplot as plt
+import numpy as np
+import torch as T
+import torch.nn as nn
 from numpy.typing import ArrayLike
 
 

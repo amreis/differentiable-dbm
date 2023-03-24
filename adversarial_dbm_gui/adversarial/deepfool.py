@@ -8,6 +8,49 @@ from tqdm import tqdm
 from ..classifiers.nnclassifier import NNClassifier
 
 
+def targeted_deepfool_batch(
+    model: nn.Module, input_batch: T.Tensor, target_class: int, max_iter: int = 50
+):
+    with T.no_grad():
+        _, orig_classes = T.max(model(input_batch), dim=1)
+        orig_classes = orig_classes.flatten()
+    perturbed_points = input_batch.clone().detach()
+    r_hat = T.zeros_like(perturbed_points)
+    perturbed_points_final = [None for _ in range(input_batch.size(0))]
+    perturbed_classes = orig_classes.clone().detach()
+    q = [i for i in range(input_batch.size(0)) if orig_classes[i] != target_class]
+    for _ in tqdm(range(max_iter)):
+        if len(q) == 0:
+            break
+        jacobians = vmap(jacrev(model))(perturbed_points[q])
+        outputs = model(perturbed_points[q])
+
+        for index, output, jacobian in zip(q, outputs, jacobians):
+            output_diff = output[target_class] - output[orig_classes[index]]
+            grad_diff = jacobian[target_class] - jacobian[orig_classes[index]]
+            perturbation = T.abs(output_diff) / T.norm(grad_diff, dim=1)
+            r_i = (perturbation + 1e-4) * grad_diff
+            r_hat[index] += r_i
+            perturbed_points[index] = input_batch[index] + (1.02 * r_hat[index])
+            perturbed_points[index].clip_(0.0, 1.0)
+        _, new_classes = T.max(model(perturbed_points[q]), dim=1)
+        to_remove_from_q = []
+        for i, index in enumerate(q):
+            if new_classes[i] != orig_classes[index]:
+                perturbed_points_final[index] = perturbed_points[index]
+                perturbed_classes[index] = new_classes[i]
+                to_remove_from_q.append(i)
+        # only works because to_remove_from_q is sorted by construction.
+        q2 = list(q)
+        for i in reversed(to_remove_from_q):
+            q2.remove(q[i])
+        q = q2
+    for ix in [i for i, v in enumerate(perturbed_points_final) if v is None]:
+        perturbed_points_final[ix] = perturbed_points[ix]
+        perturbed_classes[ix] = orig_classes[ix]
+    return T.vstack(perturbed_points_final), orig_classes, perturbed_classes
+
+
 def _model_activations(model, inputs):
     acts = model.activations(inputs)
     return acts, acts

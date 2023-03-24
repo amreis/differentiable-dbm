@@ -1,6 +1,6 @@
 from joblib import Memory
-
 from sklearn import datasets
+
 
 def load_mnist():
     memory = Memory("./tmp")

@@ -1,8 +1,8 @@
+from functools import cache
+
 import numpy as np
 import torch as T
 import torch.nn as nn
-from functools import cache
-
 from sklearn.neighbors import NearestNeighbors
 
 

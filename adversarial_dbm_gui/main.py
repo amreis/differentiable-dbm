@@ -1,21 +1,21 @@
+import logging
 import os
 import tkinter as tk
-from tkinter import ttk
 from pathlib import Path
-import logging
+from tkinter import ttk
 
 import numpy as np
 import torch as T
 import torch.nn as nn
-from torch.utils.data import TensorDataset
 from MulticoreTSNE import MulticoreTSNE as TSNE
+from scipy.spatial import distance
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, minmax_scale
-from scipy.spatial import distance
+from torch.utils.data import TensorDataset
 
 from .classifiers import nnclassifier
-from .projection import nninv, qmetrics
 from .compute import neighbors
+from .projection import nninv, qmetrics
 
 DEVICE = "cuda" if T.cuda.is_available() else "cpu"
 
@@ -176,7 +176,7 @@ def read_and_prepare_data(dataset: str = "mnist", cache: bool = True) -> DataHol
     return holder
 
 
-from .components import plot, datapoint
+from .components import datapoint, plot
 from .compute.dbm_manager import DBMManager
 from .compute.neighbors import Neighbors
 

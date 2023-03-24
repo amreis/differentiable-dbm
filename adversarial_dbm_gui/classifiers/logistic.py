@@ -1,11 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch as T
-import torch.nn.functional as F
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from sklearn import model_selection, preprocessing
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 
 class LogisticRegression(nn.Module):
@@ -64,11 +64,13 @@ class LogisticRegression(nn.Module):
 
 def main():
     from sklearn.datasets import make_blobs
+
     from ..data import load_mnist
+
     X, y = load_mnist()
     X, y = make_blobs(n_samples=1200, n_features=10, centers=3)
 
-    from sklearn.preprocessing import minmax_scale, LabelEncoder
+    from sklearn.preprocessing import LabelEncoder, minmax_scale
 
     X = minmax_scale(X).astype(np.float32)
     encoder = LabelEncoder()
@@ -92,14 +94,15 @@ def main():
         correct = (outputs.cpu().numpy() == y_test).mean()
         print(f"Accuracy: {correct:.4f}")
 
-    from ..adversarial.deepfool import deepfool_batch
-
     from MulticoreTSNE import MulticoreTSNE as TSNE
+
+    from ..adversarial.deepfool import deepfool_batch
 
     X_tsne = minmax_scale(TSNE().fit_transform(X_train)).astype(np.float32)
 
-    from ..projection.qmetrics import per_point_continuity
     from scipy.spatial.distance import pdist
+
+    from ..projection.qmetrics import per_point_continuity
 
     conts = per_point_continuity(pdist(X_train), pdist(X_tsne))
     keep_idxs = np.argsort(conts)[int(len(conts) * 0.2) :]

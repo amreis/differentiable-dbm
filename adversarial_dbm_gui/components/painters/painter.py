@@ -1,8 +1,8 @@
 import abc
 import tkinter as tk
 
-import matplotlib.pyplot as plt
 import matplotlib.artist
+import matplotlib.pyplot as plt
 
 
 class Painter(abc.ABC):

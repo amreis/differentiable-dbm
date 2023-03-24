@@ -1,6 +1,6 @@
-from functools import partial
 import tkinter as tk
 from dataclasses import dataclass
+from functools import partial
 from tkinter import ttk
 
 import matplotlib.pyplot as plt
