@@ -185,7 +185,7 @@ class DBMManager:
                 self.inverter(self.grid)
                 .cpu()
                 .numpy()
-                .reshape((self.dbm_resolution, self.dbm_resolution, -1))
+                .reshape((self.dbm_resolution, self.dbm_resolution, 1))
             )
         from scipy.signal import oaconvolve
 
