@@ -208,10 +208,6 @@ class MainWindow(tk.Frame):
         self.grid_rowconfigure(2, weight=1)
 
 
-def calculate(*args):
-    print(args)
-
-
 def main():
     import numpy as np
 
