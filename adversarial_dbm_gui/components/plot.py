@@ -1,4 +1,6 @@
+from functools import partial
 import tkinter as tk
+from tkinter import ttk
 
 import numpy as np
 from matplotlib.backend_bases import MouseEvent, key_press_handler
@@ -25,7 +27,7 @@ class DBMPlot(tk.Frame):
         data: DataHolder,
         neighbors: Neighbors,
         *args,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(master, *args, **kwargs)
         self.dbm_manager = dbm_manager
@@ -41,6 +43,13 @@ class DBMPlot(tk.Frame):
 
         self.options_frame = tk.Frame(self.master)
         self.options_frame.grid(column=1, row=0)
+
+        self.tooltip_frame = tk.Frame(self.master)
+        self.tooltip_frame.grid(column=1, row=1)
+
+        self.tooltip_label = ttk.Label(self.tooltip_frame, text="")
+        self.tooltip_label.grid(column=0, row=0, sticky=tk.NSEW)
+
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas.draw()
         self.toolbar = NavigationToolbar2Tk(self.canvas, self, pack_toolbar=False)
@@ -77,6 +86,9 @@ class DBMPlot(tk.Frame):
 
         self.canvas.mpl_connect("button_press_event", self.invert_on_click)
         self.canvas.mpl_connect("motion_notify_event", self.invert_if_drag)
+        self.canvas.mpl_connect(
+            "motion_notify_event", self.update_tooltip_with_distance
+        )
         self.canvas.mpl_connect("button_release_event", self.stop_inverting)
 
         self.canvas.get_tk_widget().grid(column=0, row=0, sticky="WNES")
@@ -87,9 +99,40 @@ class DBMPlot(tk.Frame):
         self.grid_rowconfigure(1, weight=1, minsize=30)
 
         self._invert_on = False
+        self._scheduled_tooltip_update = None
 
     def redraw(self, *args):
         self.canvas.draw()
+
+    def update_tooltip_with_distance(self, event: MouseEvent):
+        # We need to figure out row and col from xdata and ydata
+        if (
+            not self.dbm_painter.options.encode_distance
+            or event.xdata is None
+            or event.ydata is None
+        ):
+            return
+        if self.dbm_manager.get_distance_map() is None:
+            if self._scheduled_tooltip_update is not None:
+                # If we're moving the mouse and data is not available, we'll
+                # schedule so many after() tasks that it might be a problem.
+                # This prevents it.
+                self.after_cancel(self._scheduled_tooltip_update)
+            self._scheduled_tooltip_update = self.after(
+                200, partial(self.update_tooltip_with_distance, event)
+            )
+        width = height = self.dbm_manager.dbm_resolution
+        left, right, bottom, top = (0.0, 1.0, 0.0, 1.0)
+        if not (left <= event.xdata <= right and bottom <= event.ydata <= top):
+            return
+
+        px_width, px_height = (right - left) / width, (top - bottom) / width
+        x_cell = int(np.floor(event.xdata / px_width))
+        y_cell = int(np.floor(event.ydata / px_height))
+        # Row and Col are in internal coordinates. The grid starts from (x=0, y=0) and goes
+        # row-wise to (x=1, y=1).
+        dist = self.dbm_manager.distance_to_adv_at(row=y_cell, col=x_cell)
+        self.tooltip_label["text"] = f"Distance to closest Adv. = {dist:.4f}"
 
     def display_inverted_img(self, x, y):
         if x is None or y is None:

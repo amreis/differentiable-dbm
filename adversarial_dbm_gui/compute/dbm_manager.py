@@ -174,6 +174,31 @@ class DBMManager:
                 .reshape((input_width, input_width))
             )
 
+    def distance_to_adv_at(self, row, col):
+        if self._dist_map is None:
+            return None
+        return self._dist_map[row * self.dbm_resolution + col]
+
+    def distance_to_inverted_neighbors(self):
+        with T.no_grad():
+            inverted_grid = (
+                self.inverter(self.grid)
+                .cpu()
+                .numpy()
+                .reshape((self.dbm_resolution, self.dbm_resolution, -1))
+            )
+        from scipy.signal import oaconvolve
+
+        kernel = (
+            np.array(
+                [[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]], dtype=np.float32
+            ).reshape((3, 3, 1))
+            / 8.0
+        )
+
+        convolved = oaconvolve(inverted_grid, kernel, mode="same")
+        return np.linalg.norm(convolved, axis=-1)
+
     def reset_data(self):
         self._dbm_data = None
         self._naive_wormhole_data = None
