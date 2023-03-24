@@ -20,6 +20,6 @@ You will need:
 
 From the directory containing `pyproject.toml`.
 ```shell
-$ poetry install
-$ poetry run main
+poetry install
+poetry run main
 ```
