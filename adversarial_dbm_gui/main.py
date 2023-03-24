@@ -30,11 +30,8 @@ class DataHolder:
         self.y_classif_test: ArrayLike = None
         self.X_tsne: ArrayLike = None
         self.X_proj_train: ArrayLike = None
-        self.X_proj_test: ArrayLike = None
         self.X_high_train: ArrayLike = None
-        self.X_high_test: ArrayLike = None
         self.y_high_train: ArrayLike = None
-        self.y_high_test: ArrayLike = None
         self.classifier: nnclassifier.NNClassifier = None
         self.nninv_model: nninv.NNInv = None
 
@@ -46,11 +43,8 @@ class DataHolder:
             "y_classif_test.npy": "y_classif_test",
             "X_tsne.npy": "X_tsne",
             "X_proj_train.npy": "X_proj_train",
-            "X_proj_test.npy": "X_proj_test",
             "X_high_train.npy": "X_high_train",
-            "X_high_test.npy": "X_high_test",
             "y_high_train.npy": "y_high_train",
-            "y_high_test.npy": "y_high_test",
         }
 
     def save_to_cache(self, path: str):
@@ -166,30 +160,12 @@ def read_and_prepare_data(dataset: str = "mnist", cache: bool = True) -> DataHol
 
     X_tsne_filtered = X_tsne[c_keep_ixs]
 
-    (
-        X_proj_train,
-        X_proj_test,
-        X_high_train,
-        X_high_test,
-        y_high_train,
-        y_high_test,
-    ) = train_test_split(
-        X_tsne_filtered,
-        X_classif_train[c_keep_ixs],
-        y_classif_train[c_keep_ixs],
-        train_size=1000,
-        random_state=420,
-        stratify=y_classif_train[c_keep_ixs],
-    )
-    holder.X_proj_train = X_proj_train
-    holder.X_proj_test = X_proj_test
-    holder.X_high_train = X_high_train
-    holder.X_high_test = X_high_test
-    holder.y_high_train = y_high_train
-    holder.y_high_test = y_high_test
+    holder.X_proj_train = X_tsne_filtered.copy()
+    holder.X_high_train = X_classif_train[c_keep_ixs].copy()
+    holder.y_high_train = y_classif_train[c_keep_ixs].copy()
 
     classifier = train_classifier(X_classif_train, y_classif_train, n_classes)
-    nninv_model = train_nninv(X_proj_train, X_high_train)
+    nninv_model = train_nninv(holder.X_proj_train, holder.X_high_train)
 
     holder.classifier = classifier
     holder.nninv_model = nninv_model
@@ -243,7 +219,7 @@ def main():
 
     root = tk.Tk()
 
-    dbm_resolution = 200
+    dbm_resolution = 300
     xx, yy = T.meshgrid(
         T.linspace(0, 1.0, dbm_resolution, device=DEVICE),
         T.linspace(0, 1.0, dbm_resolution, device=DEVICE),
