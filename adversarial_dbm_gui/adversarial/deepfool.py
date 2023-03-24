@@ -1,90 +1,75 @@
+from functools import partial
+
 import torch as T
-import torch.autograd.functional as tfunc
 import torch.nn as nn
 from functorch import jacrev, vmap
+from tqdm import tqdm
 
 from ..classifiers.nnclassifier import NNClassifier
 
 
-def deepfool_batch(model: nn.Module, input_batch: T.Tensor, max_iter: int = 50):
+def _model_activations(model, inputs):
+    acts = model.activations(inputs)
+    return acts, acts
+
+
+# Looks ugly because of all the [...[None]][0] workarounds to work with vmap().
+# It's fast though.
+def _calc_r_i(output, jacobian, orig_class):
+    grad_diffs = jacobian - jacobian[orig_class[None]][0]
+    output_diffs = output - output[orig_class[None]][0].unsqueeze(-1)
+    perturbations = T.abs(output_diffs) / T.norm(grad_diffs, dim=1)
+    l_hat = T.argsort(perturbations)[0]
+
+    r_i = (
+        (perturbations[l_hat[None]][0] + 1e-4)
+        * grad_diffs[l_hat[None]][0]
+        / T.norm(grad_diffs[l_hat[None]][0])
+    )
+    return r_i
+
+
+def deepfool_batch(
+    model: nn.Module, input_batch: T.Tensor, max_iter: int = 50, overshoot: float = 0.02
+):
     with T.no_grad():
         _, orig_classes = T.max(model(input_batch), dim=1)
         orig_classes = orig_classes.flatten()
     perturbed_points = input_batch.clone().detach()
     r_hat = T.zeros_like(perturbed_points)
-    perturbed_points_final = [None for _ in range(input_batch.size(0))]
+    perturbed_points_final = T.full_like(perturbed_points, T.nan)
     perturbed_classes = orig_classes.clone().detach()
-    q = list(range(input_batch.size(0)))
-    for _ in range(max_iter):
+    q = T.arange(input_batch.size(0)).to(perturbed_points.get_device(), dtype=T.long)
+    loop = tqdm(range(max_iter))
+    for i in loop:
+        loop.set_description(f"{len(q) = }")
         if len(q) == 0:
             break
-        jacobians = vmap(jacrev(model))(perturbed_points[q])
-        # with T.no_grad():
-
-        outputs = model(perturbed_points[q])
-        for index, output, jacobian in zip(q, outputs, jacobians):
-            grad_diffs = (jacobian - jacobian[orig_classes[index], :]).squeeze()
-            output_diffs = (output - output[orig_classes[index], None]).squeeze()
-            perturbations = T.abs(output_diffs) / T.norm(grad_diffs, dim=1)
-            l_hat = T.argsort(perturbations)[0]
-
-            r_i = (
-                (perturbations[l_hat] + 1e-4)
-                * grad_diffs[l_hat]
-                # / T.norm(grad_diffs[l_hat])
-            )
-            r_hat[index] += r_i
-            perturbed_points[index] = input_batch[index] + (1.02 * r_hat[index])
-            perturbed_points[index].clip_(0.0, 1.0)
+        jacobians, outputs = vmap(
+            jacrev(partial(_model_activations, model), has_aux=True)
+        )(perturbed_points[q])
+        r_is = vmap(_calc_r_i)(outputs, jacobians, orig_classes[q])
+        r_hat[q] += r_is
+        perturbed_points[q] = input_batch[q] + ((1 + overshoot) * r_hat[q])
         _, new_classes = T.max(model(perturbed_points[q]), dim=1)
-        to_remove_from_q = []
-        for i, index in enumerate(q):
-            if new_classes[i] != orig_classes[index]:
-                perturbed_points_final[index] = perturbed_points[index]
-                perturbed_classes[index] = new_classes[i]
-                to_remove_from_q.append(i)
-        # only works because to_remove_from_q is sorted by construction.
-        for i in reversed(to_remove_from_q):
-            del q[i]
-    for ix in [i for i, v in enumerate(perturbed_points_final) if v is None]:
-        perturbed_points_final[ix] = perturbed_points[ix]
-        perturbed_classes[ix] = orig_classes[ix]
-    return T.vstack(perturbed_points_final), orig_classes, perturbed_classes
+
+        (changed_classes,) = T.where(new_classes != orig_classes[q])
+        changed_classes.to(new_classes.get_device())
+        perturbed_classes[q[changed_classes]] = new_classes[changed_classes]
+        perturbed_points_final[q[changed_classes]] = perturbed_points[
+            q[changed_classes]
+        ]
+
+        q = q[T.where(new_classes == orig_classes[q])]
+
+    mask = T.isnan(perturbed_points_final)
+    perturbed_points_final[mask] = perturbed_points[mask]
+    perturbed_classes[mask.any(dim=1)] = orig_classes[mask.any(dim=1)]
+    return perturbed_points_final, orig_classes, perturbed_classes
 
 
-# TODO FIX! This gives super huge perturbations. Use deepfool_batch instead.
 def deepfool(model: nn.Module, input_example: T.Tensor, max_iter: int = 50):
-    with T.no_grad():
-        _, orig_class = T.max(model(input_example[None, ...]), dim=1)
-        orig_class = orig_class.flatten()
-    perturb = input_example.clone().detach()
-    perturb_class = orig_class
-    r_tot = T.zeros_like(perturb)
-    for i in range(max_iter):
-        if perturb_class != orig_class:
-            break
-        with T.no_grad():
-            outputs = model(perturb[None, ...]).squeeze()
-        J: T.Tensor = tfunc.jacobian(model, perturb[None, ...]).squeeze()
-
-        grad_diffs = J - J[orig_class, :]
-        output_diffs = (outputs - outputs[orig_class, None]).squeeze()
-        # argsort over positive values will output the smallest one (0) in position 0
-        # but we need to discard this because it's the distance of the class to itself,
-        # so we look at index 1.
-        l_hat = T.argsort(output_diffs.abs() / T.norm(grad_diffs, dim=1))[1]
-        r = (
-            T.abs(output_diffs[l_hat])
-            * grad_diffs[l_hat]
-            / T.norm(grad_diffs[l_hat], p=2) ** 2
-        )
-
-        r_tot = r_tot + r
-        perturb += r
-        result = T.max(model(perturb[None, ...]), dim=1)
-        perturb_class = result[1].squeeze()
-
-    return perturb, i, orig_class, perturb_class
+    return deepfool_batch(model, input_example[None, ...], max_iter=max_iter)
 
 
 def main():
@@ -178,7 +163,9 @@ def main():
 
     # DeepFool
     input_point = X_train[0]
-    perturbed, orig_class, perturbed_class = deepfool_batch(model, input_point[None, ...])
+    perturbed, orig_class, perturbed_class = deepfool_batch(
+        model, input_point[None, ...]
+    )
 
     fig, (ax1, ax2) = plt.subplots(1, 2)
 

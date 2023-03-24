@@ -1,5 +1,6 @@
 import torch as T
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from tqdm import trange
@@ -29,9 +30,12 @@ class NNClassifier(nn.Module):
             self.network.append(layer)
             self.network.append(self._act())
         self.network.append(self.layers[-1])
-        self.network.append(nn.Softmax(dim=-1))
 
     def forward(self, inputs) -> T.Tensor:
+        acts = self.activations(inputs)
+        return F.softmax(acts, dim=-1)
+
+    def activations(self, inputs) -> T.Tensor:
         return self.network(inputs)
 
     def classify(self, inputs) -> T.Tensor:
