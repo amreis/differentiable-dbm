@@ -41,6 +41,16 @@ class NNClassifier(nn.Module):
     def classify(self, inputs) -> T.Tensor:
         return T.max(self.forward(inputs), dim=1)[1].squeeze()
 
+    def prob_best_class(self, inputs) -> T.Tensor:
+        return T.max(self.forward(inputs), dim=1)[0]
+
+    def classification_entropy(self, inputs) -> T.Tensor:
+        probs = self.forward(inputs)
+        assert self.n_classes == probs.size(1)
+        # probs = probs[probs > 0]
+        entropy = T.where(probs > 0, -T.log(probs) * probs, 0.0)
+        return (entropy / T.log(T.tensor(self.n_classes))).sum(dim=1)
+
     def init_parameters(self):
         self.apply(init_model)
 

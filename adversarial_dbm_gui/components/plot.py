@@ -11,6 +11,7 @@ from ..compute.dbm_manager import DBMManager
 from ..compute.neighbors import Neighbors
 from ..main import DataHolder
 from .painters import (
+    confidence_painter,
     dbm_painter,
     neighbors_painter,
     train_set_painter,
@@ -83,6 +84,16 @@ class DBMPlot(tk.Frame):
         self.neighbors_painter.attach_for_redraw(self)
         self.neighbors_painter.grid(column=0, row=3, sticky=tk.NSEW, padx=5, pady=5)
 
+        self.confidence_painter = confidence_painter.ConfidencePainter(
+            self.ax,
+            self.options_frame,
+            self.dbm_manager.grid,
+            self.dbm_manager.inverter,
+            self.dbm_manager.classifier,
+        )
+        self.confidence_painter.attach_for_redraw(self)
+        self.confidence_painter.grid(column=0, row=4, sticky=tk.NSEW, padx=5, pady=5)
+
         self.canvas.mpl_connect("button_press_event", self.invert_on_click)
         self.canvas.mpl_connect("motion_notify_event", self.invert_if_drag)
         self.canvas.mpl_connect(
@@ -98,6 +109,7 @@ class DBMPlot(tk.Frame):
         self.options_frame.grid_rowconfigure(1, weight=1)
         self.options_frame.grid_rowconfigure(2, weight=1)
         self.options_frame.grid_rowconfigure(3, weight=1)
+        self.options_frame.grid_rowconfigure(4, weight=1)
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=5)
