@@ -4,15 +4,18 @@ from tkinter import ttk
 
 import numpy as np
 from matplotlib.backend_bases import MouseEvent, key_press_handler
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
-                                               NavigationToolbar2Tk)
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
 from ..compute.dbm_manager import DBMManager
 from ..compute.neighbors import Neighbors
 from ..main import DataHolder
-from .painters import (dbm_painter, neighbors_painter, train_set_painter,
-                       wormhole_painter)
+from .painters import (
+    dbm_painter,
+    neighbors_painter,
+    train_set_painter,
+    wormhole_painter,
+)
 
 
 class DBMPlot(tk.Frame):
@@ -38,10 +41,10 @@ class DBMPlot(tk.Frame):
         self.dist_map = None
 
         self.options_frame = tk.Frame(self.master)
-        self.options_frame.grid(column=1, row=0)
+        self.options_frame.grid(column=1, row=0, sticky=("N", "E", "W"))
 
         self.tooltip_frame = tk.Frame(self.master)
-        self.tooltip_frame.grid(column=1, row=1)
+        self.tooltip_frame.grid(column=1, row=1, sticky=tk.NSEW)
 
         self.tooltip_label = ttk.Label(self.tooltip_frame, text="")
         self.tooltip_label.grid(column=0, row=0, sticky=tk.NSEW)
@@ -89,6 +92,12 @@ class DBMPlot(tk.Frame):
 
         self.canvas.get_tk_widget().grid(column=0, row=0, sticky="WNES")
         self.toolbar.grid(column=0, row=1, sticky=tk.EW)
+
+        self.options_frame.grid_columnconfigure(0, weight=1)
+        self.options_frame.grid_rowconfigure(0, weight=1)
+        self.options_frame.grid_rowconfigure(1, weight=1)
+        self.options_frame.grid_rowconfigure(2, weight=1)
+        self.options_frame.grid_rowconfigure(3, weight=1)
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=5)

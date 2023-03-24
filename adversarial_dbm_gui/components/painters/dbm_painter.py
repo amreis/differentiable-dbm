@@ -19,6 +19,7 @@ class Options:
     alpha: float = 1.0
     power: float = 1.0
     blend_mode: str = "multiply"
+    z_order: int = 0
 
 
 class DBMPainter(painter.Painter):
@@ -31,8 +32,9 @@ class DBMPainter(painter.Painter):
         self.options = Options()
 
         self.frame.grid_rowconfigure(0, weight=1)
-        self.frame.grid_columnconfigure(0, weight=1)
-        self.frame.grid_columnconfigure(1, weight=1)
+        self.frame.grid_columnconfigure(0, weight=2)
+        self.frame.grid_columnconfigure(1, weight=2)
+        self.frame.grid_columnconfigure(2, weight=1)
 
         self.enabled = tk.BooleanVar(self.frame, value=self.options.enabled)
         self.enabled_btn = ttk.Checkbutton(
@@ -43,12 +45,24 @@ class DBMPainter(painter.Painter):
             command=self.set_enabled,
         )
 
+        self.z_order_val = tk.IntVar()
+        self.z_order_spinbox = ttk.Spinbox(
+            self.frame,
+            command=self.set_z_order,
+            from_=0,
+            to=10,
+            textvariable=self.z_order_val,
+            width=3,
+        )
+        self.z_order_spinbox.state(["readonly"])
+
         self.options_btn = ttk.Button(
             self.frame, command=self.spawn_options, text="Options"
         )
 
         self.enabled_btn.grid(column=0, row=0, sticky=tk.EW)
-        self.options_btn.grid(column=1, row=0, sticky=tk.NE)
+        self.options_btn.grid(column=1, row=0, sticky=tk.E)
+        self.z_order_spinbox.grid(column=2, row=0, sticky=tk.E, padx=5)
 
     def update_params(self, *args):
         self.draw()
@@ -174,6 +188,11 @@ class DBMPainter(painter.Painter):
         self.options.blend_mode = self.blend_mode.get()
         self.update_params()
 
+    def set_z_order(self, *args):
+        self.z_order_spinbox.selection_clear()
+        self.options.z_order = self.z_order_val.get()
+        self.update_params()
+
     def draw(self):
         if self.drawing is None:
             self.drawing = self.ax.imshow(
@@ -183,9 +202,12 @@ class DBMPainter(painter.Painter):
                 origin="lower",
                 cmap="tab10",
             )
+            self.options.z_order = self.drawing.get_zorder()
+            self.z_order_val.set(self.drawing.get_zorder())
         self.drawing.set_data(self.dbm_manager.get_dbm_data())
         self.drawing.set_visible(self.options.enabled)
         self.drawing.set_alpha(self.options.alpha)
+        self.drawing.set_zorder(self.options.z_order)
 
         if self.options.show_borders:
             if self._borders_drawing is None:

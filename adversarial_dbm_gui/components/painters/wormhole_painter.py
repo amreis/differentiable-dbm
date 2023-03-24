@@ -14,6 +14,7 @@ class Options:
     enabled: bool = False
     use_naive_wormholes: bool = False
     alpha: float = 1.0
+    z_order: int = 0
 
 
 class WormholePainter(painter.Painter):
@@ -24,8 +25,9 @@ class WormholePainter(painter.Painter):
         self.options = Options()
 
         self.frame.grid_rowconfigure(0, weight=1)
-        self.frame.grid_columnconfigure(0, weight=1)
-        self.frame.grid_columnconfigure(1, weight=1)
+        self.frame.grid_columnconfigure(0, weight=2)
+        self.frame.grid_columnconfigure(1, weight=2)
+        self.frame.grid_columnconfigure(2, weight=1)
 
         self.enabled = tk.BooleanVar(self.frame, value=self.options.enabled)
         self.enabled_btn = ttk.Checkbutton(
@@ -40,8 +42,20 @@ class WormholePainter(painter.Painter):
             self.frame, command=self.spawn_options, text="Options"
         )
 
+        self.z_order_val = tk.IntVar(value=self.options.z_order)
+        self.z_order_spinbox = ttk.Spinbox(
+            self.frame,
+            command=self.set_z_order,
+            from_=0,
+            to=10,
+            textvariable=self.z_order_val,
+            width=3,
+        )
+        self.z_order_spinbox.state(["readonly"])
+
         self.enabled_btn.grid(column=0, row=0, sticky=tk.EW)
-        self.options_btn.grid(column=1, row=0, sticky=tk.NE)
+        self.options_btn.grid(column=1, row=0, sticky=tk.E)
+        self.z_order_spinbox.grid(column=2, row=0, sticky=tk.E, padx=5)
 
     def update_params(self, *args):
         self.draw()
@@ -105,6 +119,11 @@ class WormholePainter(painter.Painter):
         self.alpha_slider_label["text"] = f"Alpha: {self.alpha_val.get():.4f}"
         self.update_params()
 
+    def set_z_order(self, *args):
+        self.z_order_spinbox.selection_clear()
+        self.options.z_order = self.z_order_val.get()
+        self.update_params()
+
     def draw(self):
         if self.drawing is None:
             self.drawing = self.ax.imshow(
@@ -114,11 +133,14 @@ class WormholePainter(painter.Painter):
                 origin="lower",
                 cmap="tab10",
             )
+            self.options.z_order = self.drawing.get_zorder()
+            self.z_order_val.set(self.drawing.get_zorder())
         if self.options.use_naive_wormholes:
             self.drawing.set_data(self.dbm_manager.get_naive_wormhole_data())
         else:
             self.drawing.set_data(self.dbm_manager.get_wormhole_data())
         self.drawing.set_visible(self.options.enabled)
         self.drawing.set_alpha(self.options.alpha)
+        self.drawing.set_zorder(self.options.z_order)
 
         return super().draw()
