@@ -65,7 +65,7 @@ class DBMManager:
                 self._perturbed,
                 self._orig_class,
                 self._naive_wormhole_data,
-            ) = deepfool.deepfool_batch(self.classifier, inverted_grid)
+            ) = deepfool.deepfool_minibatches(self.classifier, inverted_grid)
 
             self._dist_map = (
                 T.linalg.norm(inverted_grid - self._perturbed, dim=-1).cpu().numpy()

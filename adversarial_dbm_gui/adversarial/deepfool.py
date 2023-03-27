@@ -114,6 +114,33 @@ def deepfool(model: nn.Module, input_example: T.Tensor, max_iter: int = 50):
     return deepfool_batch(model, input_example[None, ...], max_iter=max_iter)
 
 
+def deepfool_minibatches(model: nn.Module, input_batch: T.Tensor, max_iter: int = 50):
+    from torch.utils.data import DataLoader, TensorDataset
+
+    minibatches = DataLoader(
+        TensorDataset(input_batch), batch_size=10_000, shuffle=False
+    )
+
+    all_perturbed_points = []
+    all_orig_classes = []
+    all_perturbed_classes = []
+    for batch in minibatches:
+        (to_perturb,) = batch
+        perturbed, orig_classes, perturbed_classes = deepfool_batch(
+            model, to_perturb, max_iter=max_iter
+        )
+
+        all_perturbed_points.append(perturbed)
+        all_orig_classes.append(orig_classes)
+        all_perturbed_classes.append(perturbed_classes)
+
+    return (
+        T.cat(all_perturbed_points, dim=0),
+        T.cat(all_orig_classes, dim=0),
+        T.cat(all_perturbed_classes, dim=0),
+    )
+
+
 def main():
     from functools import partial
 
