@@ -18,37 +18,45 @@ def deepfool_svm_batch(
     orig_classes = classifier.predict(input_batch)
 
     weights = classifier.coef_  # shape: (n_classes, n_dims)
-    perturbed_batch = np.zeros_like(input_batch)
+
+    perturbed_batch = input_batch.copy()
+    perturbed_batch_final = np.zeros_like(perturbed_batch)
+    r_hat = np.zeros_like(perturbed_batch)
     perturbed_classes = np.zeros(input_batch.shape[0]) - 1
-    i = 0
-    for elem, cl in tqdm(zip(input_batch, orig_classes), total=input_batch.size(0)):
-        grad_diffs = weights - weights[cl, :]
-        perturbed = elem.copy()
-        r_hat = np.zeros_like(perturbed)
-        for _ in range(max_iter):
-            output = classifier.decision_function([perturbed]).squeeze()
-            output_diffs = output - output[cl]
-            output_diffs = ma.masked_array(
-                output_diffs, mask=[int(i == cl) for i in np.unique(orig_classes)]
+
+    q = np.arange(input_batch.shape[0])
+    for _ in range(max_iter):
+        if len(q) == 0:
+            break
+        outputs = classifier.decision_function(perturbed_batch[q])
+        # shape = (batch_size, n_classes)
+        output_diffs = (
+            outputs - outputs[range(len(outputs)), tuple(orig_classes[q]), None]
+        )
+        output_diffs[output_diffs == 0.0] = np.nan
+        # shape = (batch_size, n_classes, n_dims)
+        grad_diffs = weights[None, ...] - weights[orig_classes[q], None, ...]
+
+        perturbations = np.abs(output_diffs) / np.linalg.norm(grad_diffs, axis=-1)
+        l_hat = np.argsort(perturbations, axis=1)[:, 0]
+        r_i = (
+            (perturbations[range(len(q)), tuple(l_hat), None] + 1e-4)
+            * grad_diffs[range(len(q)), tuple(l_hat), :]
+            / np.linalg.norm(
+                grad_diffs[range(len(q)), tuple(l_hat), :], axis=-1, keepdims=True
             )
-            perturbations = np.abs(output_diffs) / np.linalg.norm(grad_diffs, axis=1)
-            l_hat = np.argsort(perturbations)[0]
+        )
+        r_hat[q] += r_i
+        perturbed_batch[q] = input_batch[q] + (1 + overshoot) * r_hat[q]
+        new_classes = classifier.predict(perturbed_batch[q])
 
-            r_i = (
-                (perturbations[l_hat] + 1e-4)
-                * grad_diffs[l_hat]
-                / np.linalg.norm(grad_diffs[l_hat])
-            )
+        (changed_classes,) = np.where(new_classes != orig_classes[q])
+        perturbed_classes[q[changed_classes]] = new_classes[changed_classes]
+        perturbed_batch_final[q[changed_classes]] = perturbed_batch[q[changed_classes]]
+        q = q[np.where(new_classes == orig_classes[q])]
 
-            r_hat += r_i
-            perturbed = elem + (1 + overshoot) * r_hat
-            new_class = classifier.predict([perturbed]).item()
-            if new_class != cl:
-                perturbed_batch[i] = perturbed
-                perturbed_classes[i] = new_class
-        if perturbed_classes[i] == -1:
-            perturbed_classes[i] = orig_classes[i]
-            perturbed_batch[i] = input_batch[i]
+    mask = np.isnan(perturbed_batch_final)
+    perturbed_batch_final[mask] = perturbed_batch[mask]
+    perturbed_classes[mask.any(axis=1)] = orig_classes[mask.any(axis=1)]
 
-        i += 1
-    return perturbed_batch, perturbed_classes
+    return perturbed_batch_final, orig_classes, perturbed_classes
