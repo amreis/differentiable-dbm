@@ -21,7 +21,7 @@ def deepfool_svm_batch(
     perturbed_batch = np.zeros_like(input_batch)
     perturbed_classes = np.zeros(input_batch.shape[0]) - 1
     i = 0
-    for elem, cl in tqdm(zip(input_batch, orig_classes)):
+    for elem, cl in tqdm(zip(input_batch, orig_classes), total=input_batch.size(0)):
         grad_diffs = weights - weights[cl, :]
         perturbed = elem.copy()
         r_hat = np.zeros_like(perturbed)
