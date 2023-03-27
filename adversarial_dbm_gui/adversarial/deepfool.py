@@ -2,7 +2,7 @@ from functools import partial
 
 import torch as T
 import torch.nn as nn
-from functorch import jacrev, vmap
+from torch.func import jacrev, vmap
 from tqdm import tqdm
 
 from ..classifiers.nnclassifier import NNClassifier
@@ -82,7 +82,7 @@ def deepfool_batch(
     r_hat = T.zeros_like(perturbed_points)
     perturbed_points_final = T.full_like(perturbed_points, T.nan)
     perturbed_classes = orig_classes.clone().detach()
-    q = T.arange(input_batch.size(0)).to(perturbed_points.get_device(), dtype=T.long)
+    q = T.arange(input_batch.size(0), device=perturbed_points.device, dtype=T.long)
     loop = tqdm(range(max_iter))
     for i in loop:
         loop.set_description(f"{len(q) = }")
@@ -97,7 +97,6 @@ def deepfool_batch(
         _, new_classes = T.max(model(perturbed_points[q]), dim=1)
 
         (changed_classes,) = T.where(new_classes != orig_classes[q])
-        changed_classes.to(new_classes.get_device())
         perturbed_classes[q[changed_classes]] = new_classes[changed_classes]
         perturbed_points_final[q[changed_classes]] = perturbed_points[
             q[changed_classes]

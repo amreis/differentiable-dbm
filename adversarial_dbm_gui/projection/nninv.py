@@ -79,8 +79,7 @@ def init_model(m: nn.Module):
     if isinstance(m, nn.Linear):
         # He Uniform initialization
         # https://www.tensorflow.org/api_docs/python/tf/keras/initializers/HeUniform
-        limit = np.sqrt(6 / m.in_features)
-        nn.init.uniform_(m.weight, -limit, limit)
+        nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
         nn.init.constant_(m.bias, 0.01)
 
 
