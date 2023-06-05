@@ -70,6 +70,28 @@ def per_point_jaccard(D_high, D_low, k=7):
     return jacc_i
 
 
+def interpolation(inverted_grid, ref_points):
+    from sklearn.neighbors import NearestNeighbors
+
+    neighbors = NearestNeighbors(n_neighbors=1)
+    neighbors.fit(ref_points)
+
+    distances, _ = neighbors.kneighbors(
+        inverted_grid, n_neighbors=1, return_distance=True
+    )
+    return np.mean(distances)
+
+
+def surjectivity(inverted_grid, ref_points):
+    from sklearn.neighbors import NearestNeighbors
+
+    neighbors = NearestNeighbors(n_neighbors=1)
+    neighbors.fit(inverted_grid)
+
+    distances, _ = neighbors.kneighbors(ref_points, n_neighbors=1, return_distance=True)
+    return np.mean(distances)
+
+
 def main():
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import LabelEncoder, minmax_scale

@@ -1,10 +1,10 @@
-"""TODO: write NNInv code.
-
+"""
 When we connect this to DeepFool we should be able to generate DBMs
 that show distance to decision boundary in nD for every 2D point.
 """
 
 from functools import partial
+from typing import Optional
 
 import numpy as np
 import torch as T
@@ -12,6 +12,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, TensorDataset
+
+from ..utils import early_stop
+
+import torchvision.models.feature_extraction as fx
 
 
 class NNInv(nn.Module):
@@ -41,20 +45,43 @@ class NNInv(nn.Module):
             nn.Sigmoid(),
         )
 
+        self._loss_fn_builder = nn.MSELoss
+
     def forward(self, inputs):
         return self.network(inputs)
 
     def init_parameters(self):
         self.apply(init_model)
 
-    def fit(self, dataset: Dataset, epochs: int, optim_kwargs: dict = {}):
+    def _val_loss(self, validation_data: Dataset):
+        loss_fn = self._loss_fn_builder()
+        val_dl = DataLoader(validation_data, batch_size=128, shuffle=False)
+        val_loss = 0.0
+        val_n = 0
+        with T.no_grad():
+            for val_batch in val_dl:
+                val_projected, val_target = val_batch
+                val_loss += loss_fn(
+                    self(val_projected), val_target
+                ).item() * val_target.size(0)
+                val_n += val_target.size(0)
+        val_loss /= val_n
+        return val_loss
+
+    def fit(
+        self,
+        dataset: Dataset,
+        epochs: int,
+        validation_data: Optional[Dataset] = None,
+        optim_kwargs: dict = {},
+    ):
+        early_stopper = early_stop.EarlyStopper(patience=5, min_delta=0.01)
         train_dl = DataLoader(
             dataset,
             batch_size=128,
             shuffle=True,
         )
-
-        loss_fn = nn.MSELoss()
+        loss_fn = self._loss_fn_builder()
         optimizer = optim.Adam(self.parameters(), **optim_kwargs)
         for e in range(epochs):
             epoch_loss = 0.0
@@ -71,6 +98,11 @@ class NNInv(nn.Module):
                 epoch_loss += loss.item() * target.size(0)
                 epoch_n += target.size(0)
             epoch_loss /= epoch_n
+            if validation_data is not None and early_stopper.early_stop(
+                val_loss := self._val_loss(validation_data)
+            ):
+                print(f"Early stopping @ epoch {e}, val_loss = {val_loss:.3f}")
+                break
             if e % 50 == 0:
                 print(f"Epoch {e}: Loss = {epoch_loss:.4f}")
 
@@ -79,7 +111,7 @@ def init_model(m: nn.Module):
     if isinstance(m, nn.Linear):
         # He Uniform initialization
         # https://www.tensorflow.org/api_docs/python/tf/keras/initializers/HeUniform
-        nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+        nn.init.kaiming_uniform_(m.weight, nonlinearity="relu")
         nn.init.constant_(m.bias, 0.01)
 
 
