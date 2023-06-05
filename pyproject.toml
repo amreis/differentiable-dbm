@@ -22,7 +22,7 @@ umap-learn = "^0.5.3"
 torchvision = "^0.15.1"
 python-dotenv = "^1.0.0"
 scikit-image = "^0.20.0"
-adversarial-dbm = {path = "adversarial_dbm"}
+core-adversarial-dbm = {path = "core_adversarial_dbm", develop = true}
 
 
 [tool.poetry.group.dev.dependencies]

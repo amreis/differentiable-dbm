@@ -43,7 +43,7 @@ class DataBunch:
             "X_high_train.npy": "X_high_train",
             "y_high_train.npy": "y_high_train",
         }
-    
+
     def _dataset_from_cache(self, path: str):
         if not os.path.isdir(path):
             return False
@@ -52,14 +52,13 @@ class DataBunch:
             file_path = os.path.join(path, fname)
             setattr(self, attr, np.load(file_path))
 
-
     def load(self, dataset: str, projection: str, *, use_cache=True):
         base_path = os.path.join("data", "assets")
         data_path = os.path.join(base_path, dataset)
         if use_cache and not self._dataset_from_cache(data_path):
             # TODO manually load data.
             pass
-        
+
         self.X_proj = np.load(os.path.join(data_path, projection, "X_proj.npy"))
 
         self.classifier = nnclassifier.NNClassifier(
@@ -73,7 +72,10 @@ class DataBunch:
             self.X_proj_train.shape[1], self.X_high_train.shape[1]
         )
         self.inverter.load_state_dict(
-            T.load(os.path.join(data_path, projection, "nninv_model.pth"), map_location=self.device)
+            T.load(
+                os.path.join(data_path, projection, "nninv_model.pth"),
+                map_location=self.device,
+            )
         )
         self.inverter.to(device=self.device)
 

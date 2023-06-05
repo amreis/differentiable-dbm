@@ -5,7 +5,8 @@ from tkinter import ttk
 
 import matplotlib.pyplot as plt
 
-from ...compute.dbm_manager import DBMManager
+from core_adversarial_dbm.compute.dbm_manager import DBMManager
+
 from . import painter
 
 

@@ -1,11 +1,12 @@
 import tkinter as tk
 from dataclasses import dataclass
 from tkinter import ttk
-import torch as T
 
 import matplotlib.pyplot as plt
+import torch as T
 
-from ...compute.dbm_manager import DBMManager
+from core_adversarial_dbm.compute.dbm_manager import DBMManager
+
 from ...main import DataHolder
 from . import painter
 
@@ -129,7 +130,7 @@ class TrainSetPainter(painter.Painter):
                 cmap="tab10",
                 edgecolors="#FFFFFF",
                 linewidths=0.3,
-                vmax=self.dbm_manager.n_classes-1,
+                vmax=self.dbm_manager.n_classes - 1,
                 vmin=0,
             )
             self.drawing_incorrect = self.ax.scatter(

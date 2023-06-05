@@ -15,10 +15,11 @@ from sklearn.preprocessing import LabelEncoder, minmax_scale
 from torch.utils.data import TensorDataset
 from umap import UMAP
 
+from core_adversarial_dbm.classifiers import metrics, nnclassifier
+from core_adversarial_dbm.compute import neighbors
+from core_adversarial_dbm.projection import nninv, nninv2, nninv_skip, qmetrics
+
 from . import defs
-from .classifiers import nnclassifier, metrics
-from .compute import neighbors
-from .projection import nninv, nninv2, nninv_skip, qmetrics
 
 DEVICE = "cuda" if T.cuda.is_available() else "cpu"
 
@@ -235,7 +236,8 @@ def train_classifier(
 def read_and_prepare_data(
     dataset: str, projection: str, skip_cached: bool = False, cache: bool = True
 ) -> DataHolder:
-    from .data import load_fashionmnist, load_mnist, load_cifar10
+    from core_adversarial_dbm.data import (load_cifar10, load_fashionmnist,
+                                           load_mnist)
 
     holder = DataHolder()
     missing_data = True
@@ -362,9 +364,10 @@ def read_and_prepare_data(
     return holder
 
 
+from core_adversarial_dbm.compute.dbm_manager import DBMManager
+from core_adversarial_dbm.compute.neighbors import Neighbors
+
 from .components import datapoint, plot
-from .compute.dbm_manager import DBMManager
-from .compute.neighbors import Neighbors
 
 
 class MainWindow(tk.Frame):

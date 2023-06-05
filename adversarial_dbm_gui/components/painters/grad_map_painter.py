@@ -10,7 +10,8 @@ import torch as T
 import torch.nn.functional as F
 from torch.func import grad, jacfwd, jacrev, vmap
 
-from ...compute.dbm_manager import DBMManager
+from core_adversarial_dbm.compute.dbm_manager import DBMManager
+
 from . import painter
 
 GradModeType = Literal[

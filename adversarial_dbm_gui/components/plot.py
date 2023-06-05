@@ -4,20 +4,16 @@ from tkinter import ttk
 
 import numpy as np
 from matplotlib.backend_bases import MouseEvent, key_press_handler
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
+                                               NavigationToolbar2Tk)
 from matplotlib.figure import Figure
 
-from ..compute.dbm_manager import DBMManager
-from ..compute.neighbors import Neighbors
+from core_adversarial_dbm.compute.dbm_manager import DBMManager
+from core_adversarial_dbm.compute.neighbors import Neighbors
+
 from ..main import DataHolder
-from .painters import (
-    confidence_painter,
-    dbm_painter,
-    grad_map_painter,
-    neighbors_painter,
-    train_set_painter,
-    wormhole_painter,
-)
+from .painters import (confidence_painter, dbm_painter, grad_map_painter,
+                       neighbors_painter, train_set_painter, wormhole_painter)
 
 
 class DBMPlot(tk.Frame):

@@ -4,7 +4,8 @@ from tkinter import ttk
 
 import matplotlib.pyplot as plt
 
-from ...compute.neighbors import Neighbors
+from core_adversarial_dbm.compute.neighbors import Neighbors
+
 from . import painter
 
 
