@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "adversarial-dbm"
+name = "core-adversarial-dbm"
 version = "0.1.0"
 description = ""
 authors = ["Alister Machado dos Reis <a.machadodosreis@uu.nl>"]
 readme = "README.md"
-packages = [{include = "adversarial_dbm"}]
+packages = [{include = "core_adversarial_dbm"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
