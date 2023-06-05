@@ -68,7 +68,7 @@ class DBMManager:
             ) = (
                 deepfool.deepfool_batch(self.classifier, inverted_grid)
                 if inverted_grid.is_cuda
-                else deepfool.deepfool_minibatches(self.classifier, inverted_grid, batch_size=20000)
+                else deepfool.deepfool_minibatches(self.classifier, inverted_grid, batch_size=10000)
             )
 
             self._dist_map = (
@@ -167,16 +167,16 @@ class DBMManager:
     def get_conf_map(self):
         pass
 
+    @T.no_grad()
     def invert_point(self, x: float, y: float):
         as_tensor = T.tensor([[x, y]], device=self.grid.device, dtype=T.float32)
         input_width = int(np.sqrt(self.classifier.input_dim))
-        with T.no_grad():
-            return (
-                self.inverter(as_tensor)
-                .cpu()
-                .numpy()
-                .reshape((input_width, input_width))
-            )
+        return (
+            self.inverter(as_tensor)
+            .cpu()
+            .numpy()
+            .reshape((input_width, input_width))
+        )
 
     def distance_to_adv_at(self, row, col):
         if self._dist_map is None:
