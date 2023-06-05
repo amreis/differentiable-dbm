@@ -2,7 +2,7 @@ import tkinter as tk
 from dataclasses import dataclass
 from tkinter import ttk
 
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 
 from ...compute.neighbors import Neighbors
 from . import painter

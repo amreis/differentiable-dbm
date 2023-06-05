@@ -1,6 +1,7 @@
 import tkinter as tk
 from dataclasses import dataclass
 from tkinter import ttk
+import torch as T
 
 import matplotlib.pyplot as plt
 
@@ -22,6 +23,8 @@ class TrainSetPainter(painter.Painter):
         self, ax: plt.Axes, master: tk.Frame, dbm_manager: DBMManager, data: DataHolder
     ) -> None:
         super().__init__(ax, master)
+
+        self.drawing_incorrect = None
 
         self.dbm_manager = dbm_manager
         self.data = data
@@ -99,10 +102,45 @@ class TrainSetPainter(painter.Painter):
         self.options.z_order = self.z_order_val.get()
         self.update_params()
 
+    @T.no_grad()
     def draw(self):
-        if self.drawing is None:
+        if self.drawing is not None:
+            self.drawing.remove()
+            self.drawing = None
+        if self.drawing_incorrect is not None:
+            self.drawing_incorrect.remove()
+            self.drawing_incorrect = None
+
+        if self.options.show_misclassifications:
+            correct = (
+                self.data.y_classif_train
+                == self.dbm_manager.classifier.classify(
+                    self.dbm_manager.inverter(
+                        T.tensor(self.data.X_proj, device=self.dbm_manager.grid.device)
+                    )
+                )
+                .cpu()
+                .numpy()
+            )
+            incorrect = ~correct
             self.drawing = self.ax.scatter(
-                *self.data.X_tsne.T,
+                *self.data.X_proj[correct].T,
+                c=self.data.y_classif_train[correct],
+                cmap="tab10",
+                edgecolors="#FFFFFF",
+                linewidths=0.3,
+                vmax=self.dbm_manager.n_classes-1,
+                vmin=0,
+            )
+            self.drawing_incorrect = self.ax.scatter(
+                *self.data.X_proj[incorrect].T,
+                c=self.data.y_classif_train[incorrect],
+                cmap="tab10",
+                marker="x",
+            )
+        else:
+            self.drawing = self.ax.scatter(
+                *self.data.X_proj.T,
                 c=self.data.y_classif_train,
                 cmap="tab10",
                 edgecolors="#FFFFFF",
@@ -110,8 +148,14 @@ class TrainSetPainter(painter.Painter):
             )
             self.options.z_order = self.drawing.get_zorder()
             self.z_order_val.set(self.drawing.get_zorder())
+
         self.drawing.set_visible(self.enabled.get())
         self.drawing.set_alpha(self.options.alpha)
         self.drawing.set_zorder(self.options.z_order)
+
+        if self.drawing_incorrect is not None:
+            self.drawing_incorrect.set_visible(self.options.enabled)
+            self.drawing.set_alpha(self.options.alpha)
+            self.drawing.set_zorder(self.options.z_order)
 
         return super().draw()

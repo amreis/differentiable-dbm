@@ -201,6 +201,8 @@ class DBMPainter(painter.Painter):
                 interpolation="none",
                 origin="lower",
                 cmap="tab10",
+                vmax=self.dbm_manager.n_classes-1,
+                vmin=0,
             )
             self.options.z_order = self.drawing.get_zorder()
             self.z_order_val.set(self.drawing.get_zorder())

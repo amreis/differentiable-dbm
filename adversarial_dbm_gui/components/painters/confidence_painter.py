@@ -114,7 +114,7 @@ class ConfidencePainter(painter.Painter):
             if mode == "prob_best_class":
                 confidence = self._classifier.prob_best_class(
                     self._inverter(self._grid)
-                )
+                ) # TODO apply power transform here too and see if comparable to "entropy" vis.
             else:  # if mode == "entropy"
                 confidence = self._classifier.classification_entropy(
                     self._inverter(self._grid)
