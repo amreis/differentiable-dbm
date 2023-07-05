@@ -403,7 +403,7 @@ class MainWindow(tk.Frame):
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=1)
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(3, weight=1, minsize=50)
 
     def save_file(self):
         from tkinter.filedialog import asksaveasfilename
