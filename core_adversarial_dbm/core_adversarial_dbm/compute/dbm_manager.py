@@ -1,11 +1,10 @@
-import tkinter as tk
 from concurrent import futures
 
 import numpy as np
 import torch as T
 
-from ..adversarial import deepfool
-from ..projection import dbms
+from core_adversarial_dbm.adversarial import deepfool
+from core_adversarial_dbm.projection import dbms
 
 
 class DBMManager:
@@ -19,13 +18,7 @@ class DBMManager:
         self.dbm_resolution = int(np.sqrt(self.grid.shape[0]))  # might change later
 
         self._pool = futures.ThreadPoolExecutor(max_workers=2)
-        self._dbm_data = None
-        self._dbm_borders = None
-        self._naive_wormhole_data = None
-        self._wormhole_data = None
-        self._dist_map = None
-        self._dist_map_fut = None
-        self._conf_map = None
+        self.reset_data()
 
         self._observers = []
 
@@ -39,7 +32,15 @@ class DBMManager:
         for obs in self._observers:
             obs.update_params(event)
 
-    def get_dbm_data(self):
+    def get_dbm_data(self, blocking=True):
+        if blocking and self._dbm_data is None:
+            self._dbm_data = (
+                self.classifier.classify(self.inverter(self.grid)).cpu().numpy()
+            )
+            self._compute_all_adversarial_data()
+            return self._dbm_data.reshape(
+                (self.dbm_resolution, self.dbm_resolution)
+            ).copy()
         if self._dbm_data is None:
             with T.no_grad():
                 self._dbm_data = (
@@ -68,7 +69,9 @@ class DBMManager:
             ) = (
                 deepfool.deepfool_batch(self.classifier, inverted_grid)
                 if inverted_grid.is_cuda
-                else deepfool.deepfool_minibatches(self.classifier, inverted_grid, batch_size=10000)
+                else deepfool.deepfool_minibatches(
+                    self.classifier, inverted_grid, batch_size=10000
+                )
             )
 
             self._dist_map = (
@@ -141,7 +144,42 @@ class DBMManager:
             (self.dbm_resolution, self.dbm_resolution)
         ).copy()
 
-    def _compute_distance_map(self):
+    def get_wormhole_data_nan(self):
+        if self._wormhole_data is None:
+            if self._naive_wormhole_data is None:
+                self.get_naive_wormhole_data()
+            from collections import deque
+            from itertools import product
+
+            neighboring_class = self._find_frontiers(self.get_dbm_data())
+            to_expand = deque(neighboring_class.keys())
+
+            while to_expand:
+                i, j = to_expand.popleft()
+                for dx, dy in product([0, 1, -1], repeat=2):
+                    if dx == dy == 0 or not (
+                        0 <= dx + i < self.dbm_resolution
+                        and 0 <= dy + j < self.dbm_resolution
+                    ):
+                        continue
+                    new_point = (i + dx, j + dy)
+                    if new_point in neighboring_class:
+                        continue
+                    neighboring_class[new_point] = neighboring_class[i, j]
+                    to_expand.append(new_point)
+            closest_2d_class = np.zeros_like(self.get_dbm_data())
+            for point, cl in neighboring_class.items():
+                closest_2d_class[point] = cl
+            self._wormhole_data = np.where(
+                closest_2d_class.reshape(-1) == self._naive_wormhole_data,
+                np.nan,
+                self._naive_wormhole_data,
+            )
+        return self._wormhole_data.reshape(
+            (self.dbm_resolution, self.dbm_resolution)
+        ).copy()
+
+    def _compute_distance_map(self, blocking=False):
         print("Computing distance map...")
         from time import perf_counter
 
@@ -153,7 +191,7 @@ class DBMManager:
         print("Distance map computed")
         print(f"Time taken: {end-start:.5f}s")
 
-    def get_distance_map(self):
+    def get_distance_map(self, blocking=False):
         if self._dist_map is None:
             if self._dist_map_fut is None:
                 self._compute_distance_map()
@@ -172,10 +210,7 @@ class DBMManager:
         as_tensor = T.tensor([[x, y]], device=self.grid.device, dtype=T.float32)
         input_width = int(np.sqrt(self.classifier.input_dim))
         return (
-            self.inverter(as_tensor)
-            .cpu()
-            .numpy()
-            .reshape((input_width, input_width))
+            self.inverter(as_tensor).cpu().numpy().reshape((input_width, input_width))
         )
 
     def distance_to_adv_at(self, row, col):
@@ -205,8 +240,11 @@ class DBMManager:
 
     def reset_data(self):
         self._dbm_data = None
+        self._dbm_borders = None
         self._naive_wormhole_data = None
+        self._wormhole_data = None
         self._dist_map = None
+        self._dist_map_fut = None
         self._conf_map = None
 
     def destroy(self):
