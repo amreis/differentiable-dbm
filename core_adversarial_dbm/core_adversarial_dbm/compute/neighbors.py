@@ -34,6 +34,19 @@ class Neighbors:
             neighbor_finder.fit(self.X_train[self.y_train == cl])
             self.per_class_neighbor_finder[cl] = neighbor_finder
 
+    def add_points(self, X: np.ndarray, y: np.ndarray):
+        self.X_train = np.concatenate([self.X_train, X], axis=0)
+        self.y_train = np.concatenate([self.y_train, y], axis=0)
+        self.global_neighbor_finder.fit(self.X_train)
+        for cl in range(self.n_classes):
+            self.per_class_neighbor_finder[cl].fit(self.X_train[self.y_train == cl])
+        self.cache_clear()
+
+    def cache_clear(self):
+        self.get_distance_to_nearest_neighbor.cache_clear()
+        self.get_distance_to_nearest_same_class_neighbor.cache_clear()
+        self.get_distance_to_nearest_diff_class_neighbor.cache_clear()
+
     @cache
     def get_distance_to_nearest_neighbor(self):
         with T.no_grad():
@@ -55,6 +68,8 @@ class Neighbors:
 
         for cl in range(self.n_classes):
             mask = inverted_grid_classes == cl
+            if not np.any(mask):
+                continue
             dist, _ = self.per_class_neighbor_finder[cl].kneighbors(
                 inverted_grid[inverted_grid_classes == cl],
                 n_neighbors=1,
@@ -77,6 +92,8 @@ class Neighbors:
 
         for cl in range(self.n_classes):
             mask = inverted_grid_classes == cl
+            if not np.any(mask):
+                continue
             elems = inverted_grid[inverted_grid_classes == cl]
             for other_cl in range(self.n_classes):
                 if cl == other_cl:
