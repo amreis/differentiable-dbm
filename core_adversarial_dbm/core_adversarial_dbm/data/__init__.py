@@ -1,11 +1,14 @@
+import numpy as np
 from joblib import Memory
 from sklearn import datasets
-
 from torchvision.datasets import CIFAR10
-from torchvision.transforms import Compose, ToTensor, Lambda
+from torchvision.transforms import ToTensor
+
+from core_adversarial_dbm.defs import ROOT_PATH
+
 
 def load_mnist():
-    memory = Memory("./tmp")
+    memory = Memory(ROOT_PATH / "tmp")
     fetch_openml_cached = memory.cache(datasets.fetch_openml)
 
     X, y = fetch_openml_cached(
@@ -18,7 +21,7 @@ def load_mnist():
 
 
 def load_fashionmnist():
-    memory = Memory("./tmp")
+    memory = Memory(ROOT_PATH / "tmp")
     fetch_openml_cached = memory.cache(datasets.fetch_openml)
 
     X, y = fetch_openml_cached(
@@ -34,3 +37,10 @@ def load_cifar10():
     X = X.reshape(X.shape[0], -1)
 
     return X, cifar10.targets
+
+
+def load_quickdraw():
+    base_path = ROOT_PATH / "data" / "assets" / "quickdraw"
+    X = np.load(base_path / "X.npy")
+    y = np.load(base_path / "y.npy")
+    return X, y
