@@ -1,0 +1,13 @@
+preamble := "poetry run -C \"${WORKSPACE_DIR}\""
+
+compose_tsne DIR:
+    {{preamble}} python compose_images.py --dir {{DIR}} --projection tsne
+
+compose_umap DIR:
+    {{preamble}} python compose_images.py --dir {{DIR}} --projection umap
+
+compose_isomap DIR:
+    {{preamble}} python compose_images.py --dir {{DIR}} --projection isomap
+
+
+compose_all_projections DIR: (compose_tsne DIR) (compose_umap DIR) (compose_isomap DIR)
