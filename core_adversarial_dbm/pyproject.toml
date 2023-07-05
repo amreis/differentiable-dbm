@@ -8,6 +8,7 @@ packages = [{include = "core_adversarial_dbm"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
+hydra-core = "^1.3.2"
 
 
 [build-system]
