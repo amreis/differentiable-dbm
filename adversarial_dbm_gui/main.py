@@ -9,21 +9,20 @@ import torch as T
 import torch.nn as nn
 from dotenv import load_dotenv
 from MulticoreTSNE import MulticoreTSNE as TSNE
+from numpy.typing import ArrayLike
 from scipy.spatial import distance
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, minmax_scale
 from torch.utils.data import TensorDataset
 from umap import UMAP
 
+from core_adversarial_dbm import defs
 from core_adversarial_dbm.classifiers import metrics, nnclassifier
 from core_adversarial_dbm.compute import neighbors
 from core_adversarial_dbm.projection import nninv, nninv2, nninv_skip, qmetrics
 
-from . import defs
+DEVICE = defs.DEVICE
 
-DEVICE = "cuda" if T.cuda.is_available() else "cpu"
-
-from numpy.typing import ArrayLike
 
 load_dotenv()
 
@@ -236,8 +235,12 @@ def train_classifier(
 def read_and_prepare_data(
     dataset: str, projection: str, skip_cached: bool = False, cache: bool = True
 ) -> DataHolder:
-    from core_adversarial_dbm.data import (load_cifar10, load_fashionmnist,
-                                           load_mnist)
+    from core_adversarial_dbm.data import (
+        load_cifar10,
+        load_fashionmnist,
+        load_mnist,
+        load_quickdraw,
+    )
 
     holder = DataHolder()
     missing_data = True
@@ -274,6 +277,8 @@ def read_and_prepare_data(
             X, y = load_fashionmnist()
         elif dataset == "cifar10":
             X, y = load_cifar10()
+        elif dataset == "quickdraw":
+            X, y = load_quickdraw()
 
         X = minmax_scale(X).astype(np.float32)
         label_encoder = LabelEncoder()
@@ -390,11 +395,38 @@ class MainWindow(tk.Frame):
         self.plot.grid(column=0, row=0, rowspan=3, sticky="NSEW")
         self.inverted_vis.grid(column=1, row=2, sticky="NSEW")
 
+        self.save_image_btn = ttk.Button(self, text="Save Plot", command=self.save_file)
+        self.save_image_btn.grid(column=0, row=3)
+
         self.grid_columnconfigure(0, weight=3)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(3, weight=1)
+
+    def save_file(self):
+        from tkinter.filedialog import asksaveasfilename
+
+        fname = asksaveasfilename(
+            confirmoverwrite=True,
+            initialdir=".",
+            initialfile="Pic.png",
+            filetypes=[("PNG Image", "*.png")],
+        )
+
+        if not fname:
+            return
+
+        self.plot.ax.set_axis_off()
+        old_xlim = self.plot.ax.get_xlim()
+        old_ylim = self.plot.ax.get_ylim()
+        self.plot.ax.set_xlim(0.0, 1.0)
+        self.plot.ax.set_ylim(0.0, 1.0)
+        self.plot.fig.savefig(fname, dpi=400, bbox_inches="tight", pad_inches=0.0)
+        self.plot.ax.set_axis_on()
+        self.plot.ax.set_xlim(old_xlim)
+        self.plot.ax.set_ylim(old_ylim)
 
 
 def main():
@@ -408,7 +440,7 @@ def main():
         "--dataset",
         type=str,
         default="mnist",
-        choices=("mnist", "fashionmnist", "cifar10"),
+        choices=("mnist", "fashionmnist", "cifar10", "quickdraw"),
     )
     parser.add_argument(
         "-p",
