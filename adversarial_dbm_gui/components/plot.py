@@ -3,17 +3,26 @@ from functools import partial
 from tkinter import ttk
 
 import numpy as np
+import torch as T
 from matplotlib.backend_bases import MouseEvent, key_press_handler
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
-                                               NavigationToolbar2Tk)
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+from torch.utils.data import TensorDataset
 
 from core_adversarial_dbm.compute.dbm_manager import DBMManager
 from core_adversarial_dbm.compute.neighbors import Neighbors
+from core_adversarial_dbm.classifiers import metrics
+from core_adversarial_dbm.defs import DEVICE
 
 from ..main import DataHolder
-from .painters import (confidence_painter, dbm_painter, grad_map_painter,
-                       neighbors_painter, train_set_painter, wormhole_painter)
+from .painters import (
+    confidence_painter,
+    dbm_painter,
+    grad_map_painter,
+    neighbors_painter,
+    train_set_painter,
+    wormhole_painter,
+)
 
 
 class DBMPlot(tk.Frame):
@@ -61,7 +70,6 @@ class DBMPlot(tk.Frame):
         )
         self.dbm_painter.attach_for_redraw(self)
         self.dbm_painter.grid(column=0, row=0, sticky=tk.NSEW, padx=5, pady=5)
-        self.dbm_painter.draw()
 
         self.train_set_painter = train_set_painter.TrainSetPainter(
             self.ax, self.options_frame, self.dbm_manager, self.data
@@ -97,12 +105,42 @@ class DBMPlot(tk.Frame):
         self.grad_map_painter.attach_for_redraw(self)
         self.grad_map_painter.grid(column=0, row=5, sticky=tk.NSEW, padx=5, pady=5)
 
+        self.add_samples_frame = tk.Frame(self.options_frame)
+        self.additional_samples_drawing = None
+        self.add_samples_enabled = tk.BooleanVar(self.add_samples_frame)
+        self.add_samples_mode_btn = ttk.Checkbutton(
+            self.add_samples_frame,
+            text="Add training samples",
+            variable=self.add_samples_enabled,
+            onvalue=True,
+            command=self.redraw,
+        )
+        self.add_samples_mode_btn.grid(column=0, row=0, sticky=tk.EW)
+        self.class_to_add_var = tk.StringVar(self.add_samples_frame, value="0")
+        self.class_to_add_textbox = ttk.Entry(
+            self.add_samples_frame, textvariable=self.class_to_add_var
+        )
+        self.class_to_add_textbox.grid(column=1, row=0, sticky="")
+        self.clear_additional_samples_btn = ttk.Button(
+            self.add_samples_frame, text="Clear", command=self.clear_additional_samples
+        )
+        self.clear_additional_samples_btn.grid(column=2, row=0, sticky="")
+        self.retrain_btn = ttk.Button(
+            self.add_samples_frame, text="Retrain", command=self.retrain
+        )
+        self.retrain_btn.grid(column=3, row=0, sticky="")
+        self.add_samples_frame.grid_rowconfigure(0, weight=1)
+        self.add_samples_frame.grid_columnconfigure(0, weight=1)
+        self.add_samples_frame.grid_columnconfigure(1, weight=1)
+        self.add_samples_frame.grid(column=0, row=6, sticky=tk.NSEW, padx=5, pady=5)
+
         self.canvas.mpl_connect("button_press_event", self.invert_on_click)
         self.canvas.mpl_connect("motion_notify_event", self.invert_if_drag)
         self.canvas.mpl_connect(
             "motion_notify_event", self.update_tooltip_with_distance
         )
         self.canvas.mpl_connect("button_release_event", self.stop_inverting)
+        self.canvas.mpl_connect("button_press_event", self.add_samples_if_enabled)
 
         self.canvas.get_tk_widget().grid(column=0, row=0, sticky="WNES")
         self.toolbar.grid(column=0, row=1, sticky=tk.EW)
@@ -114,6 +152,7 @@ class DBMPlot(tk.Frame):
         self.options_frame.grid_rowconfigure(3, weight=1)
         self.options_frame.grid_rowconfigure(4, weight=1)
         self.options_frame.grid_rowconfigure(5, weight=1)
+        self.options_frame.grid_rowconfigure(6, weight=1)
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=5)
@@ -121,8 +160,28 @@ class DBMPlot(tk.Frame):
 
         self._invert_on = False
         self._scheduled_tooltip_update = None
+        self._additional_samples = []
+
+        self.dbm_painter.draw()
 
     def redraw(self, *args):
+        if not self.add_samples_enabled.get():
+            if self.additional_samples_drawing is not None:
+                self.additional_samples_drawing.set_visible(False)
+        else:
+            if self.additional_samples_drawing is not None:
+                self.additional_samples_drawing.remove()
+                self.additional_samples_drawing = None
+            if len(self._additional_samples) > 0:
+                self.additional_samples_drawing = self.ax.scatter(
+                    *np.array([elem[0] for elem in self._additional_samples]).T,
+                    marker="+",
+                    s=800,
+                    linewidths=3.0,
+                    edgecolors="k",
+                    c="k",
+                )
+
         self.canvas.draw()
 
     def update_tooltip_with_distance(self, event: MouseEvent):
@@ -155,6 +214,14 @@ class DBMPlot(tk.Frame):
         dist = self.dbm_manager.distance_to_adv_at(row=y_cell, col=x_cell)
         self.tooltip_label["text"] = f"Distance to closest Adv. = {dist:.4f}"
 
+    def update_tooltip_with_confidence(self, event: MouseEvent):
+        if (
+            not self.confidence_painter.options.enabled
+            or event.xdata is None
+            or event.ydata is None
+        ):
+            return
+
     def display_inverted_img(self, x, y):
         if x is None or y is None:
             return
@@ -174,6 +241,79 @@ class DBMPlot(tk.Frame):
 
     def stop_inverting(self, *args):
         self._invert_on = False
+
+    def add_samples_if_enabled(self, event: MouseEvent):
+        if (
+            not self.add_samples_enabled.get()
+            or event.xdata is None
+            or event.ydata is None
+        ):
+            return
+        self._additional_samples.append(
+            (
+                np.array([event.xdata, event.ydata]),
+                int(self.class_to_add_var.get().strip()),
+            )
+        )
+
+        self.redraw()
+
+    def clear_additional_samples(self):
+        self._additional_samples.clear()
+        self.redraw()
+
+    def retrain(self):
+        print("Pre-retrain:")
+        overall_acc = metrics.accuracy(
+            self.data.classifier, self.data.X_classif_test, self.data.y_classif_test
+        )
+        per_class_acc = metrics.accuracy_per_class(
+            self.data.classifier, self.data.X_classif_test, self.data.y_classif_test
+        )
+        np.set_printoptions(precision=4)
+        print(f"Accuracy = {overall_acc:.4f}")
+        print("Per Class Acc.:", per_class_acc)
+
+        with T.device(DEVICE):
+            inverted = self.data.nninv_model(
+                T.tensor(
+                    np.array([elem[0] for elem in self._additional_samples]),
+                    dtype=T.float32,
+                )
+            ).detach()
+            classes = T.tensor([elem[1] for elem in self._additional_samples])
+
+            dataset = TensorDataset(
+                T.cat(
+                    (inverted, T.tensor(self.data.X_classif_train, dtype=T.float32)),
+                    dim=0,
+                ),
+                T.cat((classes, T.tensor(self.data.y_classif_train)), dim=0),
+            )
+
+        self.data.classifier.init_parameters()  # reset params
+        self.data.classifier.fit(dataset, 100)
+
+        print("Post-retrain:")
+        overall_acc = metrics.accuracy(
+            self.data.classifier, self.data.X_classif_test, self.data.y_classif_test
+        )
+        per_class_acc = metrics.accuracy_per_class(
+            self.data.classifier, self.data.X_classif_test, self.data.y_classif_test
+        )
+        print(f"Accuracy = {overall_acc:.4f}")
+        print("Per Class Acc.:", per_class_acc)
+
+        self.dbm_manager.classifier = self.data.classifier
+        self.dbm_manager.reset_data()
+
+        self.grad_map_painter.cache_clear()
+        self.neighbors_painter.neighbors_db.add_points(
+            inverted.cpu().numpy(), classes.cpu().numpy()
+        )
+
+        self.dbm_painter.draw()
+        self.redraw()
 
     def destroy(self) -> None:
         self.dbm_manager.destroy()
