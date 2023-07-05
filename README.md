@@ -17,6 +17,7 @@ More methods _might_ be implemented, but no promises.
 You will need:
 * [Poetry](https://python-poetry.org/) installed
 * Python >=3.9
+* TkInter and its Python bindings. Something like `sudo apt install python3-tk`.
 
 From the directory containing `pyproject.toml`.
 ```shell
