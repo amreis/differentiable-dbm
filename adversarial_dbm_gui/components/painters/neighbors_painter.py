@@ -116,3 +116,6 @@ class NeighborsPainter(painter.Painter):
         self.drawing.set_zorder(self.options.z_order)
 
         return super().draw()
+
+    def cache_clear(self):
+        self.neighbors_db.cache_clear()
