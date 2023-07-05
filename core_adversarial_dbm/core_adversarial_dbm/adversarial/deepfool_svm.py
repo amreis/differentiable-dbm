@@ -1,9 +1,7 @@
 from typing import Union
 import numpy as np
-import numpy.ma as ma
 import torch as T
 from sklearn.svm import LinearSVC
-from tqdm import tqdm
 
 
 def deepfool_svm_batch(
