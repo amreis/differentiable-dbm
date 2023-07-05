@@ -1,6 +1,6 @@
 import tkinter as tk
 from dataclasses import dataclass
-from functools import cache, partial
+from functools import cache
 from tkinter import ttk
 from typing import Literal
 
@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch as T
 import torch.nn.functional as F
-from torch.func import grad, jacfwd, jacrev, vmap
+from torch.func import grad, vmap
 
 from core_adversarial_dbm.compute.dbm_manager import DBMManager
+from core_adversarial_dbm.compute.gradient import GradientMaps
 
 from . import painter
 
@@ -21,6 +22,7 @@ GradModeType = Literal[
     "d(H(class))/d(inverter.grid)",
     "d(H(class.inverter)/d(grid))",
     "d(||inverter||)/d(grid)",
+    "min(sigma(d(inverter)/d(grid)))",
 ]
 
 
@@ -30,6 +32,7 @@ class Options:
     alpha: float = 1.0
     grad_mode: GradModeType = "d(class)/d(inverter.grid)"
     z_order: int = 0
+    target_class: int = 0
 
 
 class GradMapPainter(painter.Painter):
@@ -39,11 +42,18 @@ class GradMapPainter(painter.Painter):
 
         self.dbm_manager = dbm_manager
         self.options = Options()
+        self.grad_map_provider = GradientMaps(
+            self.dbm_manager.grid,
+            self.dbm_manager.classifier.activations,
+            self.dbm_manager.inverter,
+        )
 
         self.frame.grid_rowconfigure(0, weight=1)
         self.frame.grid_rowconfigure(1, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
         self.frame.grid_columnconfigure(1, weight=1)
+        self.frame.grid_columnconfigure(2, weight=1)
+        self.frame.grid_columnconfigure(3, weight=1)
 
         self.enabled = tk.BooleanVar(self.frame, value=self.options.enabled)
         self.enabled_btn = ttk.Checkbutton(
@@ -59,6 +69,12 @@ class GradMapPainter(painter.Painter):
         self.mode_listbox["values"] = GradModeType.__args__
         self.mode_listbox.state(["readonly"])
         self.mode_listbox.bind("<<ComboboxSelected>>", self.set_grad_mode)
+
+        self.target_class = tk.IntVar(self.frame)
+        self.class_listbox = ttk.Combobox(self.frame, textvariable=self.target_class)
+        self.class_listbox["values"] = [-1] + list(range(self.dbm_manager.n_classes))
+        self.class_listbox.state(["readonly"])
+        self.class_listbox.bind("<<ComboboxSelected>>", self.set_target_class)
 
         self.alpha_val = tk.DoubleVar(self.frame, value=self.options.alpha)
         self.alpha_slider = ttk.Scale(
@@ -82,9 +98,10 @@ class GradMapPainter(painter.Painter):
         self.z_order_spinbox.state(["readonly"])
 
         self.enabled_btn.grid(column=0, row=0, sticky=tk.EW)
-        self.mode_listbox.grid(column=1, row=0, sticky=tk.EW)
-        self.alpha_slider.grid(column=0, row=1, columnspan=2, sticky=tk.EW)
-        self.z_order_spinbox.grid(column=2, row=0, rowspan=2, sticky=tk.E, padx=5)
+        self.mode_listbox.grid(column=1, row=0, sticky=tk.E)
+        self.class_listbox.grid(column=2, row=0, sticky=tk.E)
+        self.alpha_slider.grid(column=0, row=1, columnspan=3, sticky=tk.EW)
+        self.z_order_spinbox.grid(column=3, row=0, rowspan=2, sticky=tk.E, padx=5)
 
     def update_params(self, *args):
         self.draw()
@@ -102,6 +119,11 @@ class GradMapPainter(painter.Painter):
         self.options.grad_mode = self.grad_mode.get()
         self.update_params()
 
+    def set_target_class(self, *args):
+        self.class_listbox.selection_clear()
+        self.options.target_class = self.target_class.get()
+        self.update_params()
+
     def set_z_order(self, *args):
         self.z_order_spinbox.selection_clear()
         self.options.z_order = self.z_order_val.get()
@@ -110,9 +132,13 @@ class GradMapPainter(painter.Painter):
     def draw(self):
         with T.no_grad():
             if self.options.grad_mode == "d(class)/d(inverter.grid)":
-                mat_norms = self._norm_jac_classif_wrt_inverted_grid()
+                mat_norms = self._norm_jac_classif_wrt_inverted_grid(
+                    self.options.target_class
+                )
             elif self.options.grad_mode == "d(class.inverter)/d(grid)":
-                mat_norms = self._norm_jac_classif_and_inversion_wrt_grid()
+                mat_norms = self._norm_jac_classif_and_inversion_wrt_grid(
+                    self.options.target_class
+                )
             elif self.options.grad_mode == "d(inverter)/d(grid)":
                 mat_norms = self._norm_jac_inversion_wrt_grid()
             elif self.options.grad_mode == "d(H(class))/d(inverter.grid)":
@@ -121,6 +147,8 @@ class GradMapPainter(painter.Painter):
                 mat_norms = self._norm_jac_entropy_of_classif_and_inversion_wrt_grid()
             elif self.options.grad_mode == "d(||inverter||)/d(grid)":
                 mat_norms = self._norm_jac_norm_of_inversion_wrt_grid()
+            elif self.options.grad_mode == "min(sigma(d(inverter)/d(grid)))":
+                mat_norms = self._smallest_sing_value_inversion_wrt_grid()
         mat_norms = mat_norms.cpu().reshape(
             (self.dbm_manager.dbm_resolution, self.dbm_manager.dbm_resolution)
         )
@@ -142,38 +170,43 @@ class GradMapPainter(painter.Painter):
 
         return super().draw()
 
-    @cache
-    def _norm_jac_classif_wrt_inverted_grid(self):
-        return vmap(
-            lambda *a, **kw: T.linalg.matrix_norm(
-                jacrev(self.dbm_manager.classifier.activations)(*a, **kw)
-            ),
-            chunk_size=10000,
-        )(self.dbm_manager.inverter(self.dbm_manager.grid))
+    def cache_clear(self):
+        for method in [
+            self._norm_jac_classif_and_inversion_wrt_grid,
+            self._norm_jac_classif_wrt_inverted_grid,
+            self._norm_jac_entropy_of_classif_and_inversion_wrt_grid,
+            self._norm_jac_entropy_of_classif_wrt_inverted_grid,
+            self._norm_jac_inversion_wrt_grid,
+            self._norm_jac_norm_of_inversion_wrt_grid,
+            self._smallest_sing_value_inversion_wrt_grid,
+        ]:
+            method.cache_clear()
 
     @cache
-    def _norm_jac_classif_and_inversion_wrt_grid(self):
-        return vmap(
-            lambda *a, **kw: T.linalg.matrix_norm(
-                jacrev(
-                    partial(
-                        _invert_and_activate,
-                        self.dbm_manager.inverter,
-                        self.dbm_manager.classifier,
-                    )
-                )(*a, **kw)
-            ),
-            chunk_size=5000,
-        )(self.dbm_manager.grid)
+    def _smallest_sing_value_inversion_wrt_grid(self):
+        return self.grad_map_provider.smallest_sing_value_inversion_wrt_grid()
+
+    @cache
+    def _norm_jac_classif_wrt_inverted_grid(self, target_class: int):
+        if target_class == -1:
+            return self.grad_map_provider.norm_jac_classif_wrt_inverted_grid()
+        else:
+            return self.grad_map_provider.norm_jac_classif_wrt_inverted_grid_for_class(
+                target_class
+            )
+
+    @cache
+    def _norm_jac_classif_and_inversion_wrt_grid(self, target_class: int):
+        if target_class == -1:
+            return self.grad_map_provider.norm_jac_classif_and_inversion_wrt_grid()
+        else:
+            return self.grad_map_provider.norm_jac_classif_and_inversion_wrt_grid_for_class(
+                target_class
+            )
 
     @cache
     def _norm_jac_inversion_wrt_grid(self):
-        return vmap(
-            lambda *a, **kw: T.linalg.matrix_norm(
-                jacfwd(self.dbm_manager.inverter)(*a, **kw)
-            ),
-            chunk_size=10000,
-        )(self.dbm_manager.grid)
+        return self.grad_map_provider.norm_jac_inversion_wrt_grid()
 
     @cache
     def _norm_jac_norm_of_inversion_wrt_grid(self):
@@ -223,7 +256,3 @@ class GradMapPainter(painter.Painter):
             dim=1,
         )
         return out
-
-
-def _invert_and_activate(inverter, classifier, points):
-    return classifier.activations(inverter(points))
