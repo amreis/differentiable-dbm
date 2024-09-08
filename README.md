@@ -1,7 +1,7 @@
 # Differentiable Decision Boundary Maps
 
 This repository contains code and experiment data related to the work titled
-*Exploring Classifiers with Differentiable Decision Boundary Maps*, due to A. Machado, M. Behrisch, and A. Telea, to appear in the proceedings of EuroVis 2024.
+*[Exploring Classifiers with Differentiable Decision Boundary Maps](https://doi.org/10.1111/cgf.15109)*, due to A. Machado, M. Behrisch, and A. Telea, to appear in the proceedings of EuroVis 2024.
 
 In this project, I am exploring how to augment Decision Boundary Maps
 (DBMs) with information coming from Adversarial Example Generation (AEG) theory.
